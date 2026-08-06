@@ -7,29 +7,18 @@ export default function MoleculeCard({ molecule }) {
     return (
 
         <div
-
             style={{
-
                 background:"#1e293b",
-
                 padding:20,
-
                 borderRadius:12,
-
                 color:"white"
-
             }}
-
         >
 
             <div
-
                 dangerouslySetInnerHTML={{
-
                     __html:molecule.svg
-
                 }}
-
             />
 
             <hr/>
@@ -42,87 +31,37 @@ export default function MoleculeCard({ molecule }) {
 
             <p>
 
-                <b>pIC50 :</b>
-
-                {" "}
-
-                {molecule.pic50}
+                <b>pIC50 :</b> {molecule.pic50}
 
             </p>
 
             <p>
 
-                <b>Drug Score :</b>
-
-                {" "}
-
-                {drug.druglikeness_score}
+                <b>Drug Score :</b> {drug.druglikeness_score}
 
             </p>
 
             <hr/>
 
-            <p>
+            <p><b>MW :</b> {descriptors.molecular_weight}</p>
 
-                <b>MW :</b>
+            <p><b>LogP :</b> {descriptors.logp}</p>
 
-                {" "}
+            <p><b>TPSA :</b> {descriptors.tpsa}</p>
 
-                {descriptors.molecular_weight}
+            <p><b>HBA :</b> {descriptors.hba}</p>
 
-            </p>
+            <p><b>HBD :</b> {descriptors.hbd}</p>
 
-            <p>
+            <p><b>Rotatable Bonds :</b> {descriptors.rotatable_bonds}</p>
 
-                <b>LogP :</b>
-
-                {" "}
-
-                {descriptors.logp}
-
-            </p>
-
-            <p>
-
-                <b>TPSA :</b>
-
-                {" "}
-
-                {descriptors.tpsa}
-
-            </p>
-
-            <hr/>
-
-            <p>
-
-                <b>QED :</b>
-
-                {" "}
-
-                {descriptors.qed}
-
-            </p>
+            <p><b>QED :</b> {descriptors.qed}</p>
 
             <p>
 
                 <b>Lipinski :</b>
 
-                {" "}
-
-                {
-
-                    drug.lipinski_pass
-
-                    ?
-
-                    "PASS"
-
-                    :
-
-                    "FAIL"
-
-                }
+                {drug.lipinski_pass ? " PASS" : " FAIL"}
 
             </p>
 
@@ -130,23 +69,74 @@ export default function MoleculeCard({ molecule }) {
 
                 <b>Veber :</b>
 
-                {" "}
+                {drug.veber_pass ? " PASS" : " FAIL"}
+
+            </p>
+
+            <hr/>
+
+            <h4>
+
+                Functional Groups
+
+            </h4>
+
+            <div
+                style={{
+                    display:"flex",
+                    flexWrap:"wrap",
+                    gap:8,
+                    marginBottom:15
+                }}
+            >
 
                 {
 
-                    drug.veber_pass
+                    molecule.functional_groups?.length
 
                     ?
 
-                    "PASS"
+                    molecule.functional_groups.map(
+
+                        (group,index)=>(
+
+                            <span
+
+                                key={index}
+
+                                style={{
+
+                                    background:"#2563eb",
+
+                                    padding:"5px 12px",
+
+                                    borderRadius:20,
+
+                                    fontSize:12
+
+                                }}
+
+                            >
+
+                                {group}
+
+                            </span>
+
+                        )
+
+                    )
 
                     :
 
-                    "FAIL"
+                    <span>
+
+                        None
+
+                    </span>
 
                 }
 
-            </p>
+            </div>
 
             <hr/>
 
@@ -157,15 +147,10 @@ export default function MoleculeCard({ molecule }) {
             </p>
 
             <div
-
                 style={{
-
                     wordBreak:"break-all",
-
                     fontSize:12
-
                 }}
-
             >
 
                 {molecule.smiles}

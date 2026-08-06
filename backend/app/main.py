@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.routes.scaffold import router as scaffold_router
 
 from app.routes.analyze import router as analyze_router
+from app.routes.molecule import router as molecule_router
 
 app = FastAPI(
     title="Scaffold Analyzer API",
@@ -17,7 +19,8 @@ app.add_middleware(
 )
 
 app.include_router(analyze_router)
-
+app.include_router(scaffold_router)
+app.include_router(molecule_router)
 
 @app.get("/")
 def home():
