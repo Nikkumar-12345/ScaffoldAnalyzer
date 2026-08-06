@@ -1,40 +1,59 @@
-import { useLocation, Navigate } from "react-router-dom";
+import { useLocation, Navigate, useNavigate } from "react-router-dom";
 
-import {
-    BarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer
-} from "recharts";
+import SummaryCard from "../components/SummaryCard";
+import CompositionChart from "../components/CompositionChart";
+import ScaffoldCard from "../components/ScaffoldCard";
 
 export default function Dashboard() {
 
     const location = useLocation();
 
+    const navigate = useNavigate();
+
     const result = location.state?.result;
 
     if (!result) {
+
         return <Navigate to="/" />;
+
     }
 
     const summary = result.summary;
 
     const scaffolds = result.top_scaffolds;
 
-    const chartData = result.chart_data;
+    const chartData = result.charts.composition;
+
+    function investigate(scaffold) {
+
+        navigate("/scaffold", {
+
+            state: {
+
+                scaffold
+
+            }
+
+        });
+
+    }
 
     return (
 
         <div
+
             style={{
-                padding: "40px",
-                background: "#0f172a",
-                minHeight: "100vh",
-                color: "white"
+
+                padding:40,
+
+                background:"#0f172a",
+
+                color:"white",
+
+                minHeight:"100vh"
+
             }}
+
         >
 
             <h1>
@@ -43,62 +62,42 @@ export default function Dashboard() {
 
             </h1>
 
-            <br />
-
-            {/* SUMMARY */}
+            <br/>
 
             <div
+
                 style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(4,1fr)",
-                    gap: "20px"
+
+                    display:"grid",
+
+                    gridTemplateColumns:"repeat(4,1fr)",
+
+                    gap:20
+
                 }}
+
             >
 
-                <SummaryCard
-                    title="Protein"
-                    value={summary.protein}
-                />
+                <SummaryCard title="Protein" value={summary.protein} />
 
-                <SummaryCard
-                    title="Gene"
-                    value={summary.gene}
-                />
+                <SummaryCard title="Gene" value={summary.gene} />
 
-                <SummaryCard
-                    title="Activity Records"
-                    value={summary.activity_records}
-                />
+                <SummaryCard title="Target" value={summary.chembl_target} />
 
-                <SummaryCard
-                    title="Unique Molecules"
-                    value={summary.unique_molecules}
-                />
+                <SummaryCard title="Activity Records" value={summary.activity_records} />
 
-                <SummaryCard
-                    title="Unique Scaffolds"
-                    value={summary.unique_scaffolds}
-                />
+                <SummaryCard title="Unique Molecules" value={summary.unique_molecules} />
 
-                <SummaryCard
-                    title="Largest Scaffold %"
-                    value={summary.largest_scaffold_percentage + "%"}
-                />
+                <SummaryCard title="Unique Scaffolds" value={summary.unique_scaffolds} />
 
-                <SummaryCard
-                    title="Target"
-                    value={summary.chembl_target}
-                />
+                <SummaryCard title="Largest Scaffold %" value={summary.largest_scaffold_percentage + "%"} />
 
-                <SummaryCard
-                    title="Invalid SMILES"
-                    value={summary.invalid_smiles}
-                />
+                <SummaryCard title="Average pIC50" value={summary.average_pic50} />
 
             </div>
 
-            <br />
-            <br />
+            <br/>
+            <br/>
 
             <h2>
 
@@ -106,220 +105,50 @@ export default function Dashboard() {
 
             </h2>
 
-            <div
-                style={{
-                    width: "100%",
-                    height: 420,
-                    background: "#1e293b",
-                    padding: 20,
-                    borderRadius: 12
-                }}
-            >
+            <CompositionChart
 
-                <ResponsiveContainer>
+                data={chartData}
 
-                    <BarChart
-                        data={chartData}
-                    >
+            />
 
-                        <CartesianGrid strokeDasharray="3 3" />
-
-                        <XAxis
-                            dataKey="name"
-                        />
-
-                        <YAxis />
-
-                        <Tooltip />
-
-                        <Bar
-                            dataKey="percentage"
-                        />
-
-                    </BarChart>
-
-                </ResponsiveContainer>
-
-            </div>
-
-            <br />
-            <br />
+            <br/>
+            <br/>
 
             <h2>
 
-                Top Scaffolds
+                Top Ranked Scaffolds
 
             </h2>
 
             <div
+
                 style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fill,minmax(430px,1fr))",
-                    gap: "20px"
+
+                    display:"grid",
+
+                    gridTemplateColumns:"repeat(auto-fill,minmax(460px,1fr))",
+
+                    gap:20
+
                 }}
+
             >
 
                 {
 
                     scaffolds.map(
 
-                        (scaffold) => (
+                        scaffold => (
 
-                            <div
+                            <ScaffoldCard
 
                                 key={scaffold.id}
 
-                                style={{
+                                scaffold={scaffold}
 
-                                    background: "#1e293b",
+                                onInvestigate={investigate}
 
-                                    borderRadius: 12,
-
-                                    padding: 20
-
-                                }}
-
-                            >
-
-                                <div
-
-                                    dangerouslySetInnerHTML={{
-
-                                        __html: scaffold.svg
-
-                                    }}
-
-                                />
-
-                                <hr />
-
-                                <p>
-
-                                    <b>Scaffold ID :</b>
-
-                                    {" "}
-
-                                    SCF-{scaffold.id}
-
-                                </p>
-
-                                <p>
-
-                                    <b>SMILES :</b>
-
-                                    {" "}
-
-                                    <span
-                                        style={{
-                                            wordBreak: "break-all"
-                                        }}
-                                    >
-
-                                        {scaffold.scaffold_smiles}
-
-                                    </span>
-
-                                </p>
-
-                                <p>
-
-                                    <b>Occurrences :</b>
-
-                                    {" "}
-
-                                    {scaffold.occurrences}
-
-                                </p>
-
-                                <p>
-
-                                    <b>Percentage :</b>
-
-                                    {" "}
-
-                                    {scaffold.percentage}%
-
-                                </p>
-
-                                <p>
-
-                                    <b>Activity Records :</b>
-
-                                    {" "}
-
-                                    {scaffold.activity_records}
-
-                                </p>
-
-                                <p>
-
-                                    <b>Unique Molecules :</b>
-
-                                    {" "}
-
-                                    {scaffold.unique_molecules}
-
-                                </p>
-
-                                <p>
-
-                                    <b>Maximum pIC50 :</b>
-
-                                    {" "}
-
-                                    {scaffold.max_pic50}
-
-                                </p>
-
-                                <p>
-
-                                    <b>Mean pIC50 :</b>
-
-                                    {" "}
-
-                                    {scaffold.mean_pic50}
-
-                                </p>
-
-                                <p>
-
-                                    <b>Median pIC50 :</b>
-
-                                    {" "}
-
-                                    {scaffold.median_pic50}
-
-                                </p>
-
-                                <p>
-
-                                    <b>Minimum pIC50 :</b>
-
-                                    {" "}
-
-                                    {scaffold.min_pic50}
-
-                                </p>
-
-                                <p>
-
-                                    <b>Std Dev :</b>
-
-                                    {" "}
-
-                                    {scaffold.std_pic50}
-
-                                </p>
-
-                                <br />
-
-                                <button>
-
-                                    Investigate Scaffold
-
-                                </button>
-
-                            </div>
+                            />
 
                         )
 
@@ -328,50 +157,6 @@ export default function Dashboard() {
                 }
 
             </div>
-
-        </div>
-
-    );
-
-}
-
-function SummaryCard({
-
-    title,
-
-    value
-
-}) {
-
-    return (
-
-        <div
-
-            style={{
-
-                background: "#1e293b",
-
-                padding: 20,
-
-                borderRadius: 12,
-
-                textAlign: "center"
-
-            }}
-
-        >
-
-            <h3>
-
-                {title}
-
-            </h3>
-
-            <h2>
-
-                {value}
-
-            </h2>
 
         </div>
 

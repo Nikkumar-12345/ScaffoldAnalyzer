@@ -15,53 +15,65 @@ class AnalysisService:
 
     def analyze(self, uniprot_id):
 
-        # ----------------------------
+        # ------------------------------------
         # Protein Information
-        # ----------------------------
+        # ------------------------------------
 
         protein = self.uniprot.get_protein(
             uniprot_id
         )
 
-        # ----------------------------
+        # ------------------------------------
         # ChEMBL Target
-        # ----------------------------
+        # ------------------------------------
 
         target = self.chembl.get_target(
             uniprot_id
         )
 
-        # ----------------------------
+        # ------------------------------------
         # Activity Data
-        # ----------------------------
+        # ------------------------------------
 
         activities = self.chembl.download_activities(
+
             target["target_chembl_id"]
+
         )
 
         cleaned = self.df_service.clean_activity_dataframe(
+
             activities
+
         )
 
-        # ----------------------------
+        # ------------------------------------
         # Scaffold Analysis
-        # ----------------------------
+        # ------------------------------------
 
         scaffold_data = self.scaffold.generate_scaffolds(
+
             cleaned
+
         )
 
-        # ----------------------------
-        # Chart Data (Top 10)
-        # ----------------------------
+        # ------------------------------------
+        # Charts
+        # ------------------------------------
 
-        chart_data = []
+        composition_chart = []
+
+        potency_chart = []
+
+        drug_chart = []
+
+        complexity_chart = []
 
         for i, scaffold in enumerate(
             scaffold_data["scaffolds"][:10]
         ):
 
-            chart_data.append({
+            composition_chart.append({
 
                 "name": f"SCF-{i+1}",
 
@@ -71,9 +83,39 @@ class AnalysisService:
 
             })
 
-        # ----------------------------
+            potency_chart.append({
+
+                "name": f"SCF-{i+1}",
+
+                "median_pic50":
+
+                    scaffold["median_pic50"]
+
+            })
+
+            drug_chart.append({
+
+                "name": f"SCF-{i+1}",
+
+                "drug_score":
+
+                    scaffold["druglikeness"]["druglikeness_score"]
+
+            })
+
+            complexity_chart.append({
+
+                "name": f"SCF-{i+1}",
+
+                "complexity":
+
+                    scaffold["descriptors"]["bertz_complexity"]
+
+            })
+
+        # ------------------------------------
         # Response
-        # ----------------------------
+        # ------------------------------------
 
         return {
 
@@ -105,28 +147,60 @@ class AnalysisService:
 
                 "unique_molecules":
 
-                    scaffold_data["total_unique_molecules"],
+                    scaffold_data["summary"]["total_unique_molecules"],
 
                 "unique_scaffolds":
 
-                    scaffold_data["unique_scaffolds"],
+                    scaffold_data["summary"]["unique_scaffolds"],
 
                 "largest_scaffold_percentage":
 
-                    scaffold_data["largest_scaffold_percentage"],
+                    scaffold_data["summary"]["largest_scaffold_percentage"],
 
                 "invalid_smiles":
 
-                    scaffold_data["invalid_smiles"]
+                    scaffold_data["summary"]["invalid_smiles"],
+
+                "average_pic50":
+
+                    scaffold_data["summary"]["average_median_pic50"],
+
+                "dataset_median_pic50":
+
+                    scaffold_data["summary"]["dataset_median_pic50"],
+
+                "top_scaffold_score":
+
+                    scaffold_data["summary"]["top_scaffold_score"]
 
             },
 
-            "chart_data":
+            "charts": {
 
-                chart_data,
+                "composition":
+
+                    composition_chart,
+
+                "potency":
+
+                    potency_chart,
+
+                "druglikeness":
+
+                    drug_chart,
+
+                "complexity":
+
+                    complexity_chart
+
+            },
 
             "top_scaffolds":
 
-                scaffold_data["scaffolds"][:10]
+                scaffold_data["scaffolds"][:10],
+
+            "all_scaffolds":
+
+                scaffold_data["scaffolds"]
 
         }
