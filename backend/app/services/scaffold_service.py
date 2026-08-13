@@ -1,5 +1,6 @@
 
 from collections import defaultdict
+from app.services.side_chain_service import SideChainService
 
 import numpy as np
 import pandas as pd
@@ -201,6 +202,10 @@ class ScaffoldService:
         # ---------------------------------------
 
         for scaffold in scaffold_dict.values():
+            side_chain_analysis = SideChainService.analyze(
+    scaffold["scaffold_smiles"],
+    scaffold["molecules"]
+)
 
             pic50 = scaffold["pic50_values"]
 
@@ -300,12 +305,21 @@ class ScaffoldService:
                 max_occurrences=max_occurrences
 
             )
+            # ---------------------------------------
+            # Side Chain Analysis
+            # ---------------------------------------
+
+            side_chain_analysis = SideChainService.analyze(
+                scaffold_smiles=scaffold["scaffold_smiles"],
+                molecules=scaffold["molecules"]
+            )
 
             scaffold_list.append(
 
                 {
 
                     "id": scaffold_id,
+                    "side_chain_analysis": side_chain_analysis,
 
                     "scaffold_smiles":
 
