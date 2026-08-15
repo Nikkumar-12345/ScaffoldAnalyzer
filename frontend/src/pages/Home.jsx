@@ -7,25 +7,33 @@ import api from "../services/api";
 import "../App.css";
 
 export default function Home() {
+
     const [uniprot, setUniprot] = useState("");
     const [loading, setLoading] = useState(false);
 
     const navigate = useNavigate();
 
     async function analyzeTarget() {
+
         if (uniprot.trim() === "") {
             alert("Please enter a UniProt ID");
             return;
         }
 
         try {
+
             setLoading(true);
 
-            const response = await api.post("/analyze/", {
-                uniprot_id: uniprot.trim()
-            });
+            console.log("Starting analysis for:", uniprot.trim());
 
-            console.log("SUCCESS");
+            const response = await api.post(
+                "/analyze/",
+                {
+                    uniprot_id: uniprot.trim()
+                }
+            );
+
+            console.log("===== SUCCESS =====");
             console.log(response.data);
 
             navigate("/dashboard", {
@@ -33,45 +41,103 @@ export default function Home() {
                     result: response.data
                 }
             });
+
         }
         catch (err) {
-            console.log("===== ERROR =====");
-            console.log(err);
+
+            console.log("===== ANALYSIS ERROR =====");
+            console.error(err);
 
             if (err.response) {
-                console.log("Status:", err.response.status);
-                console.log("Data:", err.response.data);
+
+                console.log(
+                    "Backend responded with status:",
+                    err.response.status
+                );
+
+                console.log(
+                    "Backend response:",
+                    err.response.data
+                );
+
+                let errorMessage = "The backend returned an error.";
+
+                if (
+                    err.response.data &&
+                    err.response.data.detail
+                ) {
+
+                    if (
+                        typeof err.response.data.detail === "string"
+                    ) {
+                        errorMessage = err.response.data.detail;
+                    }
+                    else {
+                        errorMessage = JSON.stringify(
+                            err.response.data.detail,
+                            null,
+                            2
+                        );
+                    }
+
+                }
 
                 alert(
-                    "Backend Error\n\n" +
-                    JSON.stringify(err.response.data, null, 2)
+                    "Backend Error (" +
+                    err.response.status +
+                    ")\n\n" +
+                    errorMessage
                 );
+
             }
             else if (err.request) {
-                console.log(err.request);
+
+                console.log(
+                    "Request was sent, but no response was received."
+                );
+
+                console.log("Request:", err.request);
 
                 alert(
-                    "Cannot connect to backend.\n\n" +
-                    "Make sure FastAPI is running on port 8000."
+                    "The backend did not return a response.\n\n" +
+                    "The analysis may still be processing, the Render server may be waking up, or the request may have taken too long.\n\n" +
+                    "Please check the Render logs and try again."
                 );
+
             }
             else {
-                console.log(err.message);
-                alert(err.message);
+
+                console.log(
+                    "Request setup error:",
+                    err.message
+                );
+
+                alert(
+                    "Request Error\n\n" +
+                    err.message
+                );
+
             }
+
         }
         finally {
+
             setLoading(false);
+
         }
+
     }
 
     function handleKeyDown(e) {
+
         if (e.key === "Enter" && !loading) {
             analyzeTarget();
         }
+
     }
 
     return (
+
         <div className="home-page">
 
             <Navbar />
@@ -103,6 +169,7 @@ export default function Home() {
                         </p>
 
                         <div className="hero-features">
+
                             <div className="feature-item">
                                 <span className="feature-icon">⌬</span>
                                 Scaffold Analysis
@@ -117,6 +184,7 @@ export default function Home() {
                                 <span className="feature-icon">↗</span>
                                 Activity Cliff Detection
                             </div>
+
                         </div>
 
                     </div>
@@ -129,7 +197,9 @@ export default function Home() {
                         <div className="analysis-card-content">
 
                             <div className="card-top">
+
                                 <div>
+
                                     <p className="card-label">
                                         START ANALYSIS
                                     </p>
@@ -137,6 +207,7 @@ export default function Home() {
                                     <h2>
                                         Analyze a Target
                                     </h2>
+
                                 </div>
 
                                 <div className="molecule-logo">
@@ -144,6 +215,7 @@ export default function Home() {
                                     <span></span>
                                     <span></span>
                                 </div>
+
                             </div>
 
                             <p className="input-description">
@@ -156,6 +228,7 @@ export default function Home() {
                             </label>
 
                             <div className="input-wrapper">
+
                                 <span className="search-icon">⌕</span>
 
                                 <input
@@ -168,6 +241,7 @@ export default function Home() {
                                     placeholder="Example: P00533"
                                     disabled={loading}
                                 />
+
                             </div>
 
                             <p className="example-text">
@@ -179,6 +253,7 @@ export default function Home() {
                                 onClick={analyzeTarget}
                                 disabled={loading}
                             >
+
                                 {loading ? (
                                     <>
                                         <span className="button-loader"></span>
@@ -190,6 +265,7 @@ export default function Home() {
                                         <span className="button-arrow">→</span>
                                     </>
                                 )}
+
                             </button>
 
                             <div className="card-footer">
@@ -206,5 +282,7 @@ export default function Home() {
             </main>
 
         </div>
+
     );
+
 }
