@@ -15,6 +15,10 @@ export default function ScaffoldDetails() {
     const [loading, setLoading] = useState(true);
 
 
+    // ==============================================
+    // FETCH MOLECULE DETAILS
+    // ==============================================
+
     useEffect(() => {
 
         if (!scaffold) return;
@@ -62,9 +66,9 @@ export default function ScaffoldDetails() {
         scaffold.ranking || {};
 
 
-    // ------------------------------------
+    // ==============================================
     // ONE-ATOM ANALYSIS
-    // ------------------------------------
+    // ==============================================
 
     const oneAtomAnalysis =
         scaffold.side_chain_analysis || {};
@@ -72,6 +76,692 @@ export default function ScaffoldDetails() {
     const pairs =
         oneAtomAnalysis.one_atom_pairs || [];
 
+
+    // ==============================================
+    // DOWNLOAD SCAFFOLD IMAGE
+    // ==============================================
+
+    function downloadScaffoldImage() {
+
+        if (!scaffold.svg) {
+
+            alert("Scaffold image is not available.");
+            return;
+
+        }
+
+        const blob = new Blob(
+            [scaffold.svg],
+            {
+                type: "image/svg+xml"
+            }
+        );
+
+        const url =
+            URL.createObjectURL(blob);
+
+        const link =
+            document.createElement("a");
+
+        link.href = url;
+
+        link.download =
+            `scaffold_rank_${scaffold.rank}.svg`;
+
+        document.body.appendChild(link);
+
+        link.click();
+
+        document.body.removeChild(link);
+
+        URL.revokeObjectURL(url);
+
+    }
+
+
+    // ==============================================
+    // DOWNLOAD ONE-ATOM DATA AS CSV
+    // ==============================================
+
+    function downloadOneAtomCSV() {
+
+        if (pairs.length === 0) {
+
+            alert(
+                "No one-atom difference pairs are available."
+            );
+
+            return;
+
+        }
+
+        const headers = [
+            "Molecule 1",
+            "Substituent 1",
+            "pIC50 1",
+            "Molecule 2",
+            "Substituent 2",
+            "pIC50 2",
+            "Structural Change",
+            "Delta pIC50",
+            "Cliff Result"
+        ];
+
+
+        const rows = pairs.map(
+            (pair) => [
+
+                pair.molecule_1?.chembl_id || "",
+
+                pair.molecule_1?.substituent || "",
+
+                pair.molecule_1?.pic50 || "",
+
+                pair.molecule_2?.chembl_id || "",
+
+                pair.molecule_2?.substituent || "",
+
+                pair.molecule_2?.pic50 || "",
+
+                pair.structural_change || "",
+
+                pair.delta_pic50 || "",
+
+                pair.cliff_type || ""
+
+            ]
+        );
+
+
+        const escapeCSV = (value) => {
+
+            const stringValue =
+                String(value ?? "");
+
+            return `"${stringValue.replace(/"/g, '""')}"`;
+
+        };
+
+
+        const csvContent =
+            [
+                headers.map(escapeCSV).join(","),
+
+                ...rows.map(
+                    row =>
+                        row
+                            .map(escapeCSV)
+                            .join(",")
+                )
+            ].join("\n");
+
+
+        const blob = new Blob(
+            [csvContent],
+            {
+                type: "text/csv;charset=utf-8;"
+            }
+        );
+
+
+        const url =
+            URL.createObjectURL(blob);
+
+        const link =
+            document.createElement("a");
+
+        link.href = url;
+
+        link.download =
+            `one_atom_analysis_scaffold_rank_${scaffold.rank}.csv`;
+
+        document.body.appendChild(link);
+
+        link.click();
+
+        document.body.removeChild(link);
+
+        URL.revokeObjectURL(url);
+
+    }
+
+
+    // ==============================================
+    // DOWNLOAD COMPLETE SCAFFOLD REPORT AS HTML
+    // ==============================================
+
+    function downloadScaffoldReport() {
+
+        const pairRows =
+            pairs.length > 0
+
+                ? pairs.map(
+                    (pair) => `
+
+                        <tr>
+
+                            <td>
+                                ${pair.molecule_1?.chembl_id || ""}
+                            </td>
+
+                            <td>
+                                ${pair.molecule_1?.substituent || ""}
+                            </td>
+
+                            <td>
+                                ${pair.molecule_1?.pic50 || ""}
+                            </td>
+
+                            <td>
+                                ${pair.molecule_2?.chembl_id || ""}
+                            </td>
+
+                            <td>
+                                ${pair.molecule_2?.substituent || ""}
+                            </td>
+
+                            <td>
+                                ${pair.molecule_2?.pic50 || ""}
+                            </td>
+
+                            <td>
+                                ${pair.structural_change || ""}
+                            </td>
+
+                            <td>
+                                ${pair.delta_pic50 || ""}
+                            </td>
+
+                            <td>
+                                ${pair.cliff_type || ""}
+                            </td>
+
+                        </tr>
+
+                    `
+                ).join("")
+
+                : `
+
+                    <tr>
+
+                        <td colspan="9">
+
+                            No one-atom difference pairs found.
+
+                        </td>
+
+                    </tr>
+
+                `;
+
+
+        const moleculeRows =
+            molecules.length > 0
+
+                ? molecules.map(
+                    (molecule) => `
+
+                        <tr>
+
+                            <td>
+                                ${molecule.chembl_id || ""}
+                            </td>
+
+                            <td>
+                                ${molecule.pic50 || ""}
+                            </td>
+
+                            <td>
+                                ${molecule.smiles || ""}
+                            </td>
+
+                        </tr>
+
+                    `
+                ).join("")
+
+                : `
+
+                    <tr>
+
+                        <td colspan="3">
+
+                            Molecule details were not available.
+
+                        </td>
+
+                    </tr>
+
+                `;
+
+
+        const reportHTML = `
+
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <title>
+        Scaffold Report - Rank ${scaffold.rank}
+    </title>
+
+    <style>
+
+        body {
+
+            font-family:
+                Arial,
+                sans-serif;
+
+            padding: 40px;
+
+            color: #1e293b;
+
+            background: white;
+
+        }
+
+        h1 {
+
+            color: #0f172a;
+
+            border-bottom:
+                3px solid #2563eb;
+
+            padding-bottom: 10px;
+
+        }
+
+        h2 {
+
+            margin-top: 35px;
+
+            color: #1d4ed8;
+
+        }
+
+        .summary {
+
+            display: grid;
+
+            grid-template-columns:
+                repeat(3, 1fr);
+
+            gap: 15px;
+
+            margin-top: 20px;
+
+        }
+
+        .box {
+
+            padding: 15px;
+
+            border:
+                1px solid #cbd5e1;
+
+            border-radius: 8px;
+
+            background: #f8fafc;
+
+        }
+
+        .label {
+
+            font-weight: bold;
+
+            color: #475569;
+
+        }
+
+        .scaffold-image {
+
+            margin-top: 20px;
+
+            padding: 20px;
+
+            border:
+                1px solid #cbd5e1;
+
+            border-radius: 10px;
+
+            text-align: center;
+
+        }
+
+        table {
+
+            width: 100%;
+
+            border-collapse: collapse;
+
+            margin-top: 15px;
+
+            font-size: 13px;
+
+        }
+
+        th {
+
+            background: #1e293b;
+
+            color: white;
+
+            padding: 10px;
+
+            text-align: left;
+
+        }
+
+        td {
+
+            border:
+                1px solid #cbd5e1;
+
+            padding: 8px;
+
+            word-break: break-word;
+
+        }
+
+        tr:nth-child(even) {
+
+            background: #f8fafc;
+
+        }
+
+        .footer {
+
+            margin-top: 40px;
+
+            padding-top: 15px;
+
+            border-top:
+                1px solid #cbd5e1;
+
+            color: #64748b;
+
+            font-size: 12px;
+
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+    <h1>
+        Scaffold Analysis Report
+    </h1>
+
+
+    <div class="scaffold-image">
+
+        ${scaffold.svg || ""}
+
+    </div>
+
+
+    <h2>
+        Scaffold Information
+    </h2>
+
+
+    <div class="summary">
+
+        <div class="box">
+
+            <div class="label">
+                Rank
+            </div>
+
+            ${scaffold.rank || ""}
+
+        </div>
+
+
+        <div class="box">
+
+            <div class="label">
+                Overall Score
+            </div>
+
+            ${ranking.overall_score || ""}
+
+        </div>
+
+
+        <div class="box">
+
+            <div class="label">
+                Grade
+            </div>
+
+            ${ranking.grade || ""}
+
+        </div>
+
+
+        <div class="box">
+
+            <div class="label">
+                Status
+            </div>
+
+            ${ranking.label || ""}
+
+        </div>
+
+
+        <div class="box">
+
+            <div class="label">
+                Drug Score
+            </div>
+
+            ${drug.druglikeness_score || ""}
+
+        </div>
+
+
+        <div class="box">
+
+            <div class="label">
+                QED
+            </div>
+
+            ${descriptors.qed || ""}
+
+        </div>
+
+    </div>
+
+
+    <h2>
+        One-Atom Difference Analysis
+    </h2>
+
+
+    <div class="summary">
+
+        <div class="box">
+
+            <div class="label">
+                Total Pairs Checked
+            </div>
+
+            ${oneAtomAnalysis.total_pairs_checked || 0}
+
+        </div>
+
+
+        <div class="box">
+
+            <div class="label">
+                Valid One-Atom Pairs
+            </div>
+
+            ${oneAtomAnalysis.valid_one_atom_pairs || 0}
+
+        </div>
+
+
+        <div class="box">
+
+            <div class="label">
+                Strong Potential Cliffs
+            </div>
+
+            ${oneAtomAnalysis.strong_cliffs || 0}
+
+        </div>
+
+
+        <div class="box">
+
+            <div class="label">
+                Moderate Potential Cliffs
+            </div>
+
+            ${oneAtomAnalysis.moderate_cliffs || 0}
+
+        </div>
+
+    </div>
+
+
+    <p>
+
+        ${oneAtomAnalysis.message || ""}
+
+    </p>
+
+
+    <h2>
+        One-Atom Difference Pairs
+    </h2>
+
+
+    <table>
+
+        <thead>
+
+            <tr>
+
+                <th>Molecule 1</th>
+
+                <th>Substituent 1</th>
+
+                <th>pIC50 1</th>
+
+                <th>Molecule 2</th>
+
+                <th>Substituent 2</th>
+
+                <th>pIC50 2</th>
+
+                <th>Structural Change</th>
+
+                <th>ΔpIC50</th>
+
+                <th>Cliff Result</th>
+
+            </tr>
+
+        </thead>
+
+        <tbody>
+
+            ${pairRows}
+
+        </tbody>
+
+    </table>
+
+
+    <h2>
+        Molecules
+    </h2>
+
+
+    <table>
+
+        <thead>
+
+            <tr>
+
+                <th>ChEMBL ID</th>
+
+                <th>pIC50</th>
+
+                <th>SMILES</th>
+
+            </tr>
+
+        </thead>
+
+        <tbody>
+
+            ${moleculeRows}
+
+        </tbody>
+
+    </table>
+
+
+    <div class="footer">
+
+        Generated using Scaffold Analyzer
+
+    </div>
+
+
+</body>
+
+</html>
+
+        `;
+
+
+        const blob = new Blob(
+            [reportHTML],
+            {
+                type: "text/html"
+            }
+        );
+
+
+        const url =
+            URL.createObjectURL(blob);
+
+        const link =
+            document.createElement("a");
+
+        link.href = url;
+
+        link.download =
+            `scaffold_report_rank_${scaffold.rank}.html`;
+
+        document.body.appendChild(link);
+
+        link.click();
+
+        document.body.removeChild(link);
+
+        URL.revokeObjectURL(url);
+
+    }
+
+
+    // ==============================================
+    // PAGE
+    // ==============================================
 
     return (
 
@@ -84,10 +774,6 @@ export default function ScaffoldDetails() {
             }}
         >
 
-            {/* -------------------------------- */}
-            {/* PAGE TITLE */}
-            {/* -------------------------------- */}
-
             <h1>
                 Scaffold Details
             </h1>
@@ -95,9 +781,86 @@ export default function ScaffoldDetails() {
             <br />
 
 
-            {/* -------------------------------- */}
+            {/* ========================================= */}
+            {/* DOWNLOAD BUTTONS */}
+            {/* ========================================= */}
+
+            <div
+                style={{
+                    display: "flex",
+                    gap: 15,
+                    flexWrap: "wrap",
+                    marginBottom: 30
+                }}
+            >
+
+                <button
+                    onClick={downloadScaffoldImage}
+                    style={{
+                        padding: "12px 20px",
+                        borderRadius: 8,
+                        border: "none",
+                        cursor: "pointer",
+                        fontSize: 15,
+                        fontWeight: "bold",
+                        background: "#2563eb",
+                        color: "white"
+                    }}
+                >
+                    Download Scaffold Image
+                </button>
+
+
+                <button
+                    onClick={downloadScaffoldReport}
+                    style={{
+                        padding: "12px 20px",
+                        borderRadius: 8,
+                        border: "none",
+                        cursor: "pointer",
+                        fontSize: 15,
+                        fontWeight: "bold",
+                        background: "#059669",
+                        color: "white"
+                    }}
+                >
+                    Download Scaffold Report
+                </button>
+
+
+                <button
+                    onClick={downloadOneAtomCSV}
+                    disabled={pairs.length === 0}
+                    style={{
+                        padding: "12px 20px",
+                        borderRadius: 8,
+                        border: "none",
+                        cursor:
+                            pairs.length === 0
+                                ? "not-allowed"
+                                : "pointer",
+                        fontSize: 15,
+                        fontWeight: "bold",
+                        background:
+                            pairs.length === 0
+                                ? "#475569"
+                                : "#d97706",
+                        color: "white",
+                        opacity:
+                            pairs.length === 0
+                                ? 0.6
+                                : 1
+                    }}
+                >
+                    Download One-Atom Data (CSV)
+                </button>
+
+            </div>
+
+
+            {/* ========================================= */}
             {/* SCAFFOLD INFORMATION */}
-            {/* -------------------------------- */}
+            {/* ========================================= */}
 
             <div
                 style={{
@@ -176,9 +939,9 @@ export default function ScaffoldDetails() {
             <br />
 
 
-            {/* -------------------------------- */}
+            {/* ========================================= */}
             {/* ONE ATOM DIFFERENCE ANALYSIS */}
-            {/* -------------------------------- */}
+            {/* ========================================= */}
 
             <h2>
                 One-Atom Difference Analysis
@@ -220,8 +983,8 @@ export default function ScaffoldDetails() {
                     }}
                 >
 
-                    <b>Total Pairs Checked:</b>
-                    {" "}
+                    <b>Total Pairs Checked:</b>{" "}
+
                     {
                         oneAtomAnalysis.total_pairs_checked
                         || 0
@@ -238,8 +1001,8 @@ export default function ScaffoldDetails() {
                     }}
                 >
 
-                    <b>Valid One-Atom Pairs:</b>
-                    {" "}
+                    <b>Valid One-Atom Pairs:</b>{" "}
+
                     {
                         oneAtomAnalysis.valid_one_atom_pairs
                         || 0
@@ -256,8 +1019,8 @@ export default function ScaffoldDetails() {
                     }}
                 >
 
-                    <b>Strong Potential Cliffs:</b>
-                    {" "}
+                    <b>Strong Potential Cliffs:</b>{" "}
+
                     {
                         oneAtomAnalysis.strong_cliffs
                         || 0
@@ -274,8 +1037,8 @@ export default function ScaffoldDetails() {
                     }}
                 >
 
-                    <b>Moderate Potential Cliffs:</b>
-                    {" "}
+                    <b>Moderate Potential Cliffs:</b>{" "}
+
                     {
                         oneAtomAnalysis.moderate_cliffs
                         || 0
@@ -286,9 +1049,9 @@ export default function ScaffoldDetails() {
             </div>
 
 
-            {/* -------------------------------- */}
+            {/* ========================================= */}
             {/* PAIRS TABLE */}
-            {/* -------------------------------- */}
+            {/* ========================================= */}
 
             {
 
@@ -399,7 +1162,6 @@ export default function ScaffoldDetails() {
                                                     borderBottom:
                                                         "1px solid #475569",
 
-
                                                     background:
 
                                                         pair.delta_pic50 >= 2
@@ -423,19 +1185,12 @@ export default function ScaffoldDetails() {
                                                 }}
                                             >
 
-                                                <td
-                                                    style={{
-                                                        padding: 12
-                                                    }}
-                                                >
-
+                                                <td style={{ padding: 12 }}>
                                                     {
                                                         pair.molecule_1
                                                         ?.chembl_id
                                                     }
-
                                                 </td>
-
 
                                                 <td
                                                     style={{
@@ -445,42 +1200,25 @@ export default function ScaffoldDetails() {
                                                             "break-all"
                                                     }}
                                                 >
-
                                                     {
                                                         pair.molecule_1
                                                         ?.substituent
                                                     }
-
                                                 </td>
 
-
-                                                <td
-                                                    style={{
-                                                        padding: 12
-                                                    }}
-                                                >
-
+                                                <td style={{ padding: 12 }}>
                                                     {
                                                         pair.molecule_1
                                                         ?.pic50
                                                     }
-
                                                 </td>
 
-
-                                                <td
-                                                    style={{
-                                                        padding: 12
-                                                    }}
-                                                >
-
+                                                <td style={{ padding: 12 }}>
                                                     {
                                                         pair.molecule_2
                                                         ?.chembl_id
                                                     }
-
                                                 </td>
-
 
                                                 <td
                                                     style={{
@@ -490,28 +1228,18 @@ export default function ScaffoldDetails() {
                                                             "break-all"
                                                     }}
                                                 >
-
                                                     {
                                                         pair.molecule_2
                                                         ?.substituent
                                                     }
-
                                                 </td>
 
-
-                                                <td
-                                                    style={{
-                                                        padding: 12
-                                                    }}
-                                                >
-
+                                                <td style={{ padding: 12 }}>
                                                     {
                                                         pair.molecule_2
                                                         ?.pic50
                                                     }
-
                                                 </td>
-
 
                                                 <td
                                                     style={{
@@ -519,13 +1247,10 @@ export default function ScaffoldDetails() {
                                                         fontWeight: "bold"
                                                     }}
                                                 >
-
                                                     {
                                                         pair.structural_change
                                                     }
-
                                                 </td>
-
 
                                                 <td
                                                     style={{
@@ -534,13 +1259,10 @@ export default function ScaffoldDetails() {
                                                         fontSize: 18
                                                     }}
                                                 >
-
                                                     {
                                                         pair.delta_pic50
                                                     }
-
                                                 </td>
-
 
                                                 <td
                                                     style={{
@@ -548,11 +1270,9 @@ export default function ScaffoldDetails() {
                                                         fontWeight: "bold"
                                                     }}
                                                 >
-
                                                     {
                                                         pair.cliff_type
                                                     }
-
                                                 </td>
 
                                             </tr>
@@ -579,9 +1299,9 @@ export default function ScaffoldDetails() {
             <br />
 
 
-            {/* -------------------------------- */}
+            {/* ========================================= */}
             {/* MOLECULES */}
-            {/* -------------------------------- */}
+            {/* ========================================= */}
 
             <h2>
                 Molecules
@@ -590,9 +1310,7 @@ export default function ScaffoldDetails() {
 
             <p>
 
-                Total Molecules:
-
-                {" "}
+                Total Molecules:{" "}
 
                 {scaffold.unique_molecules}
 
@@ -643,11 +1361,8 @@ export default function ScaffoldDetails() {
                         (molecule, index) => (
 
                             <MoleculeCard
-
                                 key={index}
-
                                 molecule={molecule}
-
                             />
 
                         )
@@ -657,7 +1372,6 @@ export default function ScaffoldDetails() {
                 }
 
             </div>
-
 
         </div>
 
