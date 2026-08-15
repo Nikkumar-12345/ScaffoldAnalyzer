@@ -1,4 +1,3 @@
-
 from collections import defaultdict
 from app.services.side_chain_service import SideChainService
 
@@ -24,9 +23,10 @@ class ScaffoldService:
         # Remove duplicate molecules
         # ---------------------------------------
 
+        # Removed unnecessary .copy() to reduce memory usage
         unique_df = df.drop_duplicates(
             subset=["molecule_chembl_id"]
-        ).copy()
+        )
 
         scaffold_dict = {}
 
@@ -46,6 +46,10 @@ class ScaffoldService:
 
             pchembl = row.get("pchembl_value", None)
 
+            if not smiles:
+                invalid_smiles += 1
+                continue
+
             mol = Chem.MolFromSmiles(smiles)
 
             if mol is None:
@@ -54,23 +58,34 @@ class ScaffoldService:
 
                 continue
 
-            scaffold = MurckoScaffold.GetScaffoldForMol(mol)
+            try:
 
-            if scaffold is None:
+                scaffold = MurckoScaffold.GetScaffoldForMol(
+                    mol
+                )
+
+            except Exception:
+
+                invalid_smiles += 1
+
+                continue
+
+            if (
+                scaffold is None
+                or scaffold.GetNumAtoms() == 0
+            ):
 
                 continue
 
             scaffold_smiles = Chem.MolToSmiles(
-
                 scaffold,
-
                 canonical=True
-
             )
 
             if not scaffold_smiles:
 
-              continue
+                continue
+
             # ---------------------------------------
             # Create scaffold entry
             # ---------------------------------------
@@ -78,11 +93,8 @@ class ScaffoldService:
             if scaffold_smiles not in scaffold_dict:
 
                 drawer = rdMolDraw2D.MolDraw2DSVG(
-
                     300,
-
                     220
-
                 )
 
                 drawer.DrawMolecule(scaffold)
@@ -100,65 +112,82 @@ class ScaffoldService:
                 )
 
                 scaffold_dict[scaffold_smiles] = {
+
                     "scaffold_smiles": scaffold_smiles,
+
                     "svg": svg,
+
                     "molecules": [],
+
                     "pic50_values": [],
+
                     "descriptors": descriptors,
+
                     "druglikeness": druglikeness,
+
                     "functional_groups":
                         FunctionalGroupService.detect(
                             scaffold_smiles
                         )
                 }
 
-            scaffold_dict[
-    scaffold_smiles
-]["molecules"].append(
+            # ---------------------------------------
+            # Add molecule to its SAME scaffold
+            # ---------------------------------------
 
-    {
+            molecule_pic50 = None
 
-        "chembl_id": molecule_id,
-
-        "smiles": smiles,
-
-        "pic50": (
-            float(pchembl)
             if (
                 pchembl is not None
                 and pchembl != ""
                 and not pd.isna(pchembl)
-            )
-            else None
-        )
-
-    }
-
-)
-
-            if (
-
-                pchembl is not None
-
-                and pchembl != ""
-
-                and not pd.isna(pchembl)
-
             ):
 
                 try:
 
-                    scaffold_dict[
-                        scaffold_smiles
-                    ]["pic50_values"].append(
-
-                        float(pchembl)
-
+                    molecule_pic50 = float(
+                        pchembl
                     )
 
-                except:
+                except (
+                    TypeError,
+                    ValueError
+                ):
 
-                    pass
+                    molecule_pic50 = None
+
+            scaffold_dict[
+                scaffold_smiles
+            ]["molecules"].append(
+
+                {
+
+                    "chembl_id": molecule_id,
+
+                    "smiles": smiles,
+
+                    "pic50": molecule_pic50
+
+                }
+
+            )
+
+            if molecule_pic50 is not None:
+
+                scaffold_dict[
+                    scaffold_smiles
+                ]["pic50_values"].append(
+                    molecule_pic50
+                )
+
+        # ---------------------------------------
+        # Release DataFrame memory
+        # Grouped data is now safely stored in
+        # scaffold_dict.
+        # ---------------------------------------
+
+        unique_df = None
+        df = None
 
         # ---------------------------------------
         # Maximum occurrence
@@ -168,13 +197,25 @@ class ScaffoldService:
 
             return {
 
-                "total_unique_molecules": 0,
+                "summary": {
 
-                "invalid_smiles": invalid_smiles,
+                    "total_unique_molecules": 0,
 
-                "unique_scaffolds": 0,
+                    "unique_scaffolds": 0,
 
-                "largest_scaffold_percentage": 0,
+                    "invalid_smiles": invalid_smiles,
+
+                    "total_activity_records": 0,
+
+                    "largest_scaffold_percentage": 0,
+
+                    "top_scaffold_score": 0,
+
+                    "average_median_pic50": None,
+
+                    "dataset_median_pic50": None
+
+                },
 
                 "scaffolds": []
 
@@ -183,9 +224,7 @@ class ScaffoldService:
         max_occurrences = max(
 
             len(
-
                 scaffold["molecules"]
-
             )
 
             for scaffold in scaffold_dict.values()
@@ -205,62 +244,44 @@ class ScaffoldService:
             pic50 = scaffold["pic50_values"]
 
             occurrences = len(
-
                 scaffold["molecules"]
-
             )
 
             percentage = round(
 
                 occurrences
-
                 * 100
-
                 / total_unique_molecules,
 
                 2
 
-            )   
+            )
+
             if len(pic50) > 0:
 
                 max_pic50 = round(
-
                     max(pic50),
-
                     3
-
                 )
 
                 min_pic50 = round(
-
                     min(pic50),
-
                     3
-
                 )
 
                 mean_pic50 = round(
-
                     float(np.mean(pic50)),
-
                     3
-
                 )
 
                 median_pic50 = round(
-
                     float(np.median(pic50)),
-
                     3
-
                 )
 
                 std_pic50 = round(
-
                     float(np.std(pic50)),
-
                     3
-
                 )
 
             else:
@@ -300,97 +321,153 @@ class ScaffoldService:
                 max_occurrences=max_occurrences
 
             )
+
             # ---------------------------------------
             # Side Chain Analysis
+            #
+            # IMPORTANT:
+            # molecules here belong ONLY to this
+            # particular Murcko scaffold.
+            #
+            # Therefore SideChainService never receives
+            # molecules from different scaffolds together.
+            #
+            # Skip analysis when fewer than two
+            # molecules are available because no pair
+            # can possibly be formed.
             # ---------------------------------------
 
-            side_chain_analysis = SideChainService.analyze(
-                scaffold_smiles=scaffold["scaffold_smiles"],
-                molecules=scaffold["molecules"]
-            )
+            if occurrences >= 2:
+
+                side_chain_analysis = (
+                    SideChainService.analyze(
+                        scaffold_smiles=
+                            scaffold["scaffold_smiles"],
+
+                        molecules=
+                            scaffold["molecules"]
+                    )
+                )
+
+            else:
+
+                side_chain_analysis = {
+
+                    "total_molecules":
+                        occurrences,
+
+                    "total_pairs_checked":
+                        0,
+
+                    "valid_one_atom_pairs":
+                        0,
+
+                    "replacement_pairs":
+                        0,
+
+                    "addition_removal_pairs":
+                        0,
+
+                    "strong_cliffs":
+                        0,
+
+                    "moderate_cliffs":
+                        0,
+
+                    "one_atom_pairs":
+                        [],
+
+                    "message": (
+                        "At least two molecules are "
+                        "required for one-atom "
+                        "comparison."
+                    )
+
+                }
+
+            # ---------------------------------------
+            # Add complete scaffold result
+            # ---------------------------------------
 
             scaffold_list.append(
 
                 {
 
                     "id": scaffold_id,
-                    "side_chain_analysis": side_chain_analysis,
+
+                    "side_chain_analysis":
+                        side_chain_analysis,
 
                     "scaffold_smiles":
-
                         scaffold["scaffold_smiles"],
 
                     "svg":
-
                         scaffold["svg"],
 
                     "occurrences":
-
                         occurrences,
 
                     "percentage":
-
                         percentage,
 
                     "activity_records":
-
                         len(pic50),
 
                     "unique_molecules":
-
                         occurrences,
 
                     "max_pic50":
-
                         max_pic50,
 
                     "mean_pic50":
-
                         mean_pic50,
 
                     "median_pic50":
-
                         median_pic50,
 
                     "min_pic50":
-
                         min_pic50,
 
                     "std_pic50":
-
                         std_pic50,
 
                     "descriptors":
-
                         descriptors,
 
                     "druglikeness":
-
                         druglikeness,
-                    "functional_groups":
 
-    scaffold["functional_groups"],
+                    "functional_groups":
+                        scaffold["functional_groups"],
 
                     "ranking":
-
                         ranking,
 
                     "molecules":
-
                         scaffold["molecules"]
 
                 }
 
             )
 
-            scaffold_id += 1        # ---------------------------------------
-        # Sort Scaffolds
+            scaffold_id += 1
+
+        # ---------------------------------------
+        # Release grouping dictionary reference
+        # All required results are now stored in
+        # scaffold_list.
         # ---------------------------------------
 
+        scaffold_dict = None
+
+        # ---------------------------------------
+        # Sort Scaffolds
+        #
         # Primary sort:
         # 1. Overall ranking score
         # 2. Median pIC50
         # 3. Occurrences
+        # ---------------------------------------
 
         scaffold_list.sort(
 
@@ -438,16 +515,31 @@ class ScaffoldService:
 
             top_scaffold = scaffold_list[0]
 
-            top_percentage = top_scaffold["percentage"]
+            top_percentage = (
+                top_scaffold["percentage"]
+            )
 
-            top_score = top_scaffold["ranking"]["overall_score"]
+            if (
+                top_scaffold["ranking"]
+                is not None
+            ):
+
+                top_score = (
+                    top_scaffold["ranking"]
+                    .get("overall_score", 0)
+                )
+
+            else:
+
+                top_score = 0
 
         else:
 
             top_percentage = 0
 
             top_score = 0
-                    # ---------------------------------------
+
+        # ---------------------------------------
         # Global Statistics
         # ---------------------------------------
 
@@ -463,7 +555,10 @@ class ScaffoldService:
 
         for scaffold in scaffold_list:
 
-            if scaffold["median_pic50"] is not None:
+            if (
+                scaffold["median_pic50"]
+                is not None
+            ):
 
                 valid_pic50.append(
 
@@ -475,7 +570,9 @@ class ScaffoldService:
 
             average_pic50 = round(
 
-                float(np.mean(valid_pic50)),
+                float(
+                    np.mean(valid_pic50)
+                ),
 
                 3
 
@@ -483,7 +580,9 @@ class ScaffoldService:
 
             median_dataset_pic50 = round(
 
-                float(np.median(valid_pic50)),
+                float(
+                    np.median(valid_pic50)
+                ),
 
                 3
 
@@ -530,7 +629,6 @@ class ScaffoldService:
             },
 
             "scaffolds":
-
                 scaffold_list
 
         }

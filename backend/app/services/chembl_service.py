@@ -10,6 +10,20 @@ class ChEMBLService:
 
     BASE_URL = "https://www.ebi.ac.uk/chembl/api/data"
 
+    # Only keep fields actually needed by the application
+    REQUIRED_COLUMNS = [
+        "activity_id",
+        "molecule_chembl_id",
+        "canonical_smiles",
+        "standard_value",
+        "standard_units",
+        "standard_relation",
+        "standard_type",
+        "pchembl_value",
+        "assay_chembl_id",
+        "document_chembl_id"
+    ]
+
     def __init__(self):
 
         self.session = requests.Session()
@@ -50,7 +64,7 @@ class ChEMBLService:
         )
 
     # --------------------------------------------------
-    # Safe GET request
+    # SAFE GET REQUEST
     # --------------------------------------------------
 
     def safe_get(self, url, timeout=120):
@@ -82,7 +96,7 @@ class ChEMBLService:
             )
 
     # --------------------------------------------------
-    # Get Target
+    # GET TARGET
     # --------------------------------------------------
 
     def get_target(self, uniprot_id):
@@ -91,7 +105,7 @@ class ChEMBLService:
             self.BASE_URL
             + "/target.json"
             + "?target_components__accession="
-            + uniprot_id
+            + uniprot_id.strip()
         )
 
         response = self.safe_get(
@@ -106,7 +120,7 @@ class ChEMBLService:
             []
         )
 
-        if len(targets) == 0:
+        if not targets:
 
             raise Exception(
                 "No target found for this UniProt ID."
@@ -115,13 +129,8 @@ class ChEMBLService:
         for target in targets:
 
             if (
-                target.get("target_type")
-                == "SINGLE PROTEIN"
-
-                and
-
-                target.get("organism")
-                == "Homo sapiens"
+                target.get("target_type") == "SINGLE PROTEIN"
+                and target.get("organism") == "Homo sapiens"
             ):
 
                 return target
@@ -131,7 +140,18 @@ class ChEMBLService:
         )
 
     # --------------------------------------------------
-    # Download Activities
+    # COMPACT ACTIVITY RECORD
+    # --------------------------------------------------
+
+    def compact_activity(self, activity):
+
+        return {
+            column: activity.get(column)
+            for column in self.REQUIRED_COLUMNS
+        }
+
+    # --------------------------------------------------
+    # DOWNLOAD ACTIVITIES
     # --------------------------------------------------
 
     def download_activities(self, chembl_target):
@@ -145,9 +165,16 @@ class ChEMBLService:
             + "&limit=500"
         )
 
-        all_rows = []
+        # Store only compact records instead of complete
+        # large ChEMBL activity dictionaries.
+        rows = []
+
+        # Keep only one valid record per molecule.
+        seen_molecules = set()
 
         page_number = 1
+        total_received = 0
+        total_kept = 0
 
         while url:
 
@@ -160,6 +187,7 @@ class ChEMBLService:
                 timeout=120
             )
 
+            # Parse the JSON only once
             data = response.json()
 
             activities = data.get(
@@ -167,10 +195,65 @@ class ChEMBLService:
                 []
             )
 
-            all_rows.extend(
-                activities
+            total_received += len(activities)
+
+            # ------------------------------------------
+            # FILTER AND DEDUPLICATE IMMEDIATELY
+            # ------------------------------------------
+
+            for activity in activities:
+
+                molecule_id = activity.get(
+                    "molecule_chembl_id"
+                )
+
+                smiles = activity.get(
+                    "canonical_smiles"
+                )
+
+                standard_value = activity.get(
+                    "standard_value"
+                )
+
+                standard_relation = activity.get(
+                    "standard_relation"
+                )
+
+                # Skip invalid records
+                if not molecule_id:
+                    continue
+
+                if not smiles:
+                    continue
+
+                if standard_value is None:
+                    continue
+
+                if standard_relation != "=":
+                    continue
+
+                # Keep only one record per molecule
+                if molecule_id in seen_molecules:
+                    continue
+
+                seen_molecules.add(
+                    molecule_id
+                )
+
+                # Keep only required columns
+                rows.append(
+                    self.compact_activity(activity)
+                )
+
+                total_kept += 1
+
+            print(
+                f"Page {page_number} complete | "
+                f"Received: {total_received} | "
+                f"Unique molecules kept: {total_kept}"
             )
 
+            # Get next page BEFORE releasing data
             page_meta = data.get(
                 "page_meta",
                 {}
@@ -179,6 +262,16 @@ class ChEMBLService:
             next_page = page_meta.get(
                 "next"
             )
+
+            # Release references from this page
+            activities = None
+            page_meta = None
+            data = None
+            response = None
+
+            # ------------------------------------------
+            # MOVE TO NEXT PAGE
+            # ------------------------------------------
 
             if next_page:
 
@@ -195,22 +288,31 @@ class ChEMBLService:
 
                 page_number += 1
 
-                # Small delay between pages.
-                # This reduces the chance of repeatedly
-                # hitting the ChEMBL server too aggressively.
-                time.sleep(0.5)
+                # Small delay between API requests
+                time.sleep(0.3)
 
             else:
 
                 url = None
 
-        if len(all_rows) == 0:
+        # ----------------------------------------------
+        # VALIDATE RESULTS
+        # ----------------------------------------------
+
+        if not rows:
 
             raise Exception(
-                "No IC50 activity records were returned "
-                "by ChEMBL."
+                "No valid IC50 activity records were "
+                "returned by ChEMBL."
             )
 
+        print(
+            f"Download complete | "
+            f"Total API records: {total_received} | "
+            f"Unique valid molecules: {total_kept}"
+        )
+
         return pd.DataFrame(
-            all_rows
+            rows,
+            columns=self.REQUIRED_COLUMNS
         )
