@@ -68,10 +68,9 @@ class ScaffoldService:
 
             )
 
-            if scaffold_smiles == "":
+            if not scaffold_smiles:
 
-                scaffold_smiles = "NO_SCAFFOLD"
-
+              continue
             # ---------------------------------------
             # Create scaffold entry
             # ---------------------------------------
@@ -202,10 +201,6 @@ class ScaffoldService:
         # ---------------------------------------
 
         for scaffold in scaffold_dict.values():
-            side_chain_analysis = SideChainService.analyze(
-    scaffold["scaffold_smiles"],
-    scaffold["molecules"]
-)
 
             pic50 = scaffold["pic50_values"]
 

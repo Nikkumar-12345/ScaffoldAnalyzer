@@ -1,5 +1,7 @@
+import time
 import requests
 import pandas as pd
+
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -13,16 +15,75 @@ class ChEMBLService:
         self.session = requests.Session()
 
         retry = Retry(
-            total=5,
-            backoff_factor=1,
-            status_forcelist=[429, 500, 502, 503, 504],
-            allowed_methods=["GET"]
+            total=8,
+            connect=8,
+            read=8,
+            status=8,
+
+            backoff_factor=2,
+
+            status_forcelist=[
+                429,
+                500,
+                502,
+                503,
+                504
+            ],
+
+            allowed_methods=["GET"],
+
+            raise_on_status=False
         )
 
-        adapter = HTTPAdapter(max_retries=retry)
+        adapter = HTTPAdapter(
+            max_retries=retry
+        )
 
-        self.session.mount("https://", adapter)
-        self.session.mount("http://", adapter)
+        self.session.mount(
+            "https://",
+            adapter
+        )
+
+        self.session.mount(
+            "http://",
+            adapter
+        )
+
+    # --------------------------------------------------
+    # Safe GET request
+    # --------------------------------------------------
+
+    def safe_get(self, url, timeout=120):
+
+        try:
+
+            response = self.session.get(
+                url,
+                timeout=timeout
+            )
+
+            if response.status_code >= 500:
+
+                raise Exception(
+                    f"ChEMBL server error: "
+                    f"{response.status_code}"
+                )
+
+            response.raise_for_status()
+
+            return response
+
+        except requests.exceptions.RequestException as e:
+
+            raise Exception(
+                "Could not retrieve data from ChEMBL. "
+                "The ChEMBL API may be temporarily unavailable. "
+                f"Details: {str(e)}"
+            )
+
+    # --------------------------------------------------
+    # Get Target
+    # --------------------------------------------------
 
     def get_target(self, uniprot_id):
 
@@ -33,27 +94,45 @@ class ChEMBLService:
             + uniprot_id
         )
 
-        response = self.session.get(url, timeout=60)
-
-        response.raise_for_status()
+        response = self.safe_get(
+            url,
+            timeout=60
+        )
 
         data = response.json()
 
-        targets = data.get("targets", [])
+        targets = data.get(
+            "targets",
+            []
+        )
 
         if len(targets) == 0:
-            raise Exception("No target found.")
+
+            raise Exception(
+                "No target found for this UniProt ID."
+            )
 
         for target in targets:
 
             if (
-                target["target_type"] == "SINGLE PROTEIN"
-                and target["organism"] == "Homo sapiens"
+                target.get("target_type")
+                == "SINGLE PROTEIN"
+
+                and
+
+                target.get("organism")
+                == "Homo sapiens"
             ):
 
                 return target
 
-        raise Exception("No Human Single Protein target found.")
+        raise Exception(
+            "No Human Single Protein target found."
+        )
+
+    # --------------------------------------------------
+    # Download Activities
+    # --------------------------------------------------
 
     def download_activities(self, chembl_target):
 
@@ -63,29 +142,43 @@ class ChEMBLService:
             + "?target_chembl_id="
             + chembl_target
             + "&standard_type=IC50"
-            + "&limit=1000"
+            + "&limit=500"
         )
 
         all_rows = []
 
+        page_number = 1
+
         while url:
 
-            print("Downloading:", url)
+            print(
+                f"Downloading page {page_number}"
+            )
 
-            response = self.session.get(
+            response = self.safe_get(
                 url,
                 timeout=120
             )
 
-            response.raise_for_status()
-
             data = response.json()
 
-            all_rows.extend(
-                data["activities"]
+            activities = data.get(
+                "activities",
+                []
             )
 
-            next_page = data["page_meta"]["next"]
+            all_rows.extend(
+                activities
+            )
+
+            page_meta = data.get(
+                "page_meta",
+                {}
+            )
+
+            next_page = page_meta.get(
+                "next"
+            )
 
             if next_page:
 
@@ -95,10 +188,29 @@ class ChEMBLService:
 
                 else:
 
-                    url = "https://www.ebi.ac.uk" + next_page
+                    url = (
+                        "https://www.ebi.ac.uk"
+                        + next_page
+                    )
+
+                page_number += 1
+
+                # Small delay between pages.
+                # This reduces the chance of repeatedly
+                # hitting the ChEMBL server too aggressively.
+                time.sleep(0.5)
 
             else:
 
                 url = None
 
-        return pd.DataFrame(all_rows)
+        if len(all_rows) == 0:
+
+            raise Exception(
+                "No IC50 activity records were returned "
+                "by ChEMBL."
+            )
+
+        return pd.DataFrame(
+            all_rows
+        )

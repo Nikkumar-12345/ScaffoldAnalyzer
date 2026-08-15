@@ -1,9 +1,13 @@
 from rdkit import Chem
 from collections import defaultdict
-import statistics
+from itertools import combinations
 
 
 class SideChainService:
+
+    # -----------------------------------------
+    # GET SIDE CHAIN / SUBSTITUENT
+    # -----------------------------------------
 
     @staticmethod
     def get_side_chain(smiles, scaffold_smiles):
@@ -20,9 +24,10 @@ class SideChainService:
             return None
 
         scaffold_atoms = set(match)
+
         side_chain_atoms = set()
 
-        # Find atoms directly attached to scaffold
+        # Find atoms directly connected to scaffold
         for atom_idx in scaffold_atoms:
 
             atom = mol.GetAtomWithIdx(atom_idx)
@@ -40,7 +45,7 @@ class SideChainService:
         visited = set()
         fragments = []
 
-        # Extract complete fragments outside the scaffold
+        # Extract every connected fragment outside scaffold
         for start_atom in side_chain_atoms:
 
             if start_atom in visited:
@@ -90,17 +95,232 @@ class SideChainService:
         return ".".join(sorted(fragments))
 
 
+    # -----------------------------------------
+    # GET ATOM COUNTS
+    # -----------------------------------------
+
+    @staticmethod
+    def get_atom_counts(fragment_smiles):
+
+        if (
+            fragment_smiles is None
+            or fragment_smiles == "No Side Chain"
+            or fragment_smiles == ""
+        ):
+            return {}
+
+        mol = Chem.MolFromSmiles(fragment_smiles)
+
+        if mol is None:
+            return {}
+
+        counts = defaultdict(int)
+
+        for atom in mol.GetAtoms():
+
+            # Heavy atoms only
+            if atom.GetAtomicNum() > 1:
+
+                counts[atom.GetSymbol()] += 1
+
+        return dict(counts)
+
+
+    # -----------------------------------------
+    # ANALYZE STRUCTURAL CHANGE
+    #
+    # Supports:
+    #
+    # 1. Addition/removal:
+    #    R-H -> R-F
+    #
+    # 2. Replacement:
+    #    R-F -> R-Cl
+    #
+    # -----------------------------------------
+
+    @staticmethod
+    def analyze_atom_change(side_chain_1, side_chain_2):
+
+        counts_1 = SideChainService.get_atom_counts(
+            side_chain_1
+        )
+
+        counts_2 = SideChainService.get_atom_counts(
+            side_chain_2
+        )
+
+        elements = set(counts_1.keys()) | set(counts_2.keys())
+
+        removed = []
+        added = []
+
+        for element in elements:
+
+            count_1 = counts_1.get(element, 0)
+            count_2 = counts_2.get(element, 0)
+
+            difference = count_2 - count_1
+
+            if difference > 0:
+
+                added.extend(
+                    [element] * difference
+                )
+
+            elif difference < 0:
+
+                removed.extend(
+                    [element] * abs(difference)
+                )
+
+
+        # -------------------------------------
+        # CASE 1:
+        # ONE ATOM ADDED
+        # -------------------------------------
+
+        if len(added) == 1 and len(removed) == 0:
+
+            return {
+
+                "is_one_atom_change": True,
+
+                "change_type": "Addition",
+
+                "structural_change":
+                    f"Added {added[0]}",
+
+                "added_atoms": added,
+
+                "removed_atoms": removed
+
+            }
+
+
+        # -------------------------------------
+        # CASE 2:
+        # ONE ATOM REMOVED
+        # -------------------------------------
+
+        if len(removed) == 1 and len(added) == 0:
+
+            return {
+
+                "is_one_atom_change": True,
+
+                "change_type": "Removal",
+
+                "structural_change":
+                    f"Removed {removed[0]}",
+
+                "added_atoms": added,
+
+                "removed_atoms": removed
+
+            }
+
+
+        # -------------------------------------
+        # CASE 3:
+        # ONE ATOM REPLACED
+        #
+        # Example:
+        # F -> Cl
+        # C -> N
+        # Br -> I
+        # -------------------------------------
+
+        if len(removed) == 1 and len(added) == 1:
+
+            return {
+
+                "is_one_atom_change": True,
+
+                "change_type": "Replacement",
+
+                "structural_change":
+                    f"{removed[0]} → {added[0]}",
+
+                "added_atoms": added,
+
+                "removed_atoms": removed
+
+            }
+
+
+        # More than one atom changed
+        return {
+
+            "is_one_atom_change": False,
+
+            "change_type": "Multiple Changes",
+
+            "structural_change": None,
+
+            "added_atoms": added,
+
+            "removed_atoms": removed
+
+        }
+
+
+    # -----------------------------------------
+    # ACTIVITY CLIFF CLASSIFICATION
+    # -----------------------------------------
+
+    @staticmethod
+    def classify_cliff(delta_pic50):
+
+        if delta_pic50 >= 2.0:
+
+            return {
+
+                "cliff_type": "Strong Potential Cliff",
+
+                "is_potential_cliff": True
+
+            }
+
+        elif delta_pic50 >= 1.0:
+
+            return {
+
+                "cliff_type": "Moderate Potential Cliff",
+
+                "is_potential_cliff": True
+
+            }
+
+        else:
+
+            return {
+
+                "cliff_type": "No Strong Cliff",
+
+                "is_potential_cliff": False
+
+            }
+
+
+    # -----------------------------------------
+    # MAIN ANALYSIS
+    #
+    # molecules passed here belong to ONE
+    # scaffold only.
+    # -----------------------------------------
+
     @staticmethod
     def analyze(scaffold_smiles, molecules):
 
-        side_chain_data = defaultdict(list)
+        processed_molecules = []
 
-        highest_molecule = None
-        lowest_molecule = None
 
-        # ----------------------------------
-        # Group molecules by side chain
-        # ----------------------------------
+        # -------------------------------------
+        # PREPARE MOLECULES
+        #
+        # Extract side chain once only.
+        # -------------------------------------
 
         for molecule in molecules:
 
@@ -112,292 +332,496 @@ class SideChainService:
 
             try:
                 pic50 = float(pic50)
+
             except (TypeError, ValueError):
                 continue
 
+
             side_chain = SideChainService.get_side_chain(
-                smiles,
-                scaffold_smiles
+
+                smiles=smiles,
+
+                scaffold_smiles=scaffold_smiles
+
             )
+
 
             if side_chain is None:
-                side_chain = "Unknown"
-
-            molecule_data = {
-
-                "chembl_id": molecule.get("chembl_id"),
-
-                "smiles": smiles,
-
-                "pic50": pic50,
-
-                "side_chain": side_chain
-
-            }
-
-            side_chain_data[side_chain].append(
-                molecule_data
-            )
-
-            # Overall highest activity molecule
-            if (
-                highest_molecule is None
-                or pic50 > highest_molecule["pic50"]
-            ):
-
-                highest_molecule = molecule_data
-
-            # Overall lowest activity molecule
-            if (
-                lowest_molecule is None
-                or pic50 < lowest_molecule["pic50"]
-            ):
-
-                lowest_molecule = molecule_data
+                continue
 
 
-        # ----------------------------------
-        # Calculate side-chain statistics
-        # ----------------------------------
+            processed_molecules.append({
 
-        side_chains = []
+                "chembl_id":
+                    molecule.get("chembl_id"),
 
-        for side_chain, group in side_chain_data.items():
+                "smiles":
+                    smiles,
 
-            values = [
+                "pic50":
+                    pic50,
 
-                molecule["pic50"]
+                "substituent":
+                    side_chain,
 
-                for molecule in group
-
-            ]
-
-            # Highest and lowest molecule
-            # belonging to this side chain
-            max_molecule = max(
-                group,
-                key=lambda x: x["pic50"]
-            )
-
-            min_molecule = min(
-                group,
-                key=lambda x: x["pic50"]
-            )
-
-            side_chains.append({
-
-                "side_chain": side_chain,
-
-                "count": len(group),
-
-                "max_pic50": round(
-                    max(values),
-                    3
-                ),
-
-                "mean_pic50": round(
-                    statistics.mean(values),
-                    3
-                ),
-
-                "min_pic50": round(
-                    min(values),
-                    3
-                ),
-
-                "max_molecule": max_molecule,
-
-                "min_molecule": min_molecule
+                "atom_counts":
+                    SideChainService.get_atom_counts(
+                        side_chain
+                    )
 
             })
 
 
-        # Sort highest potency side chains first
-        side_chains.sort(
+        # -------------------------------------
+        # REMOVE DUPLICATE IDENTICAL MOLECULES
+        # -------------------------------------
 
-            key=lambda x: x["max_pic50"],
+        unique_processed = {}
+
+        for molecule in processed_molecules:
+
+            key = (
+                molecule["chembl_id"],
+                molecule["smiles"]
+            )
+
+            unique_processed[key] = molecule
+
+
+        processed_molecules = list(
+            unique_processed.values()
+        )
+
+
+        # -------------------------------------
+        # GROUP MOLECULES BY TOTAL
+        # HEAVY ATOM COUNT
+        #
+        # This reduces unnecessary comparisons.
+        # -------------------------------------
+
+        grouped_by_size = defaultdict(list)
+
+        for molecule in processed_molecules:
+
+            total_atoms = sum(
+                molecule["atom_counts"].values()
+            )
+
+            grouped_by_size[total_atoms].append(
+                molecule
+            )
+
+
+        # -------------------------------------
+        # COMPARE ONLY POSSIBLE SIZE GROUPS
+        #
+        # Same size:
+        #     possible replacement
+        #
+        # Size difference of 1:
+        #     possible addition/removal
+        # -------------------------------------
+
+        one_atom_pairs = []
+
+        total_pairs_checked = 0
+
+
+        sizes = sorted(
+            grouped_by_size.keys()
+        )
+
+
+        for size in sizes:
+
+
+            # =================================
+            # SAME SIZE
+            #
+            # Check possible replacement:
+            # F -> Cl, C -> N etc.
+            # =================================
+
+            same_size_group = grouped_by_size[size]
+
+            for molecule_1, molecule_2 in combinations(
+                same_size_group,
+                2
+            ):
+
+                total_pairs_checked += 1
+
+                change = (
+                    SideChainService.analyze_atom_change(
+
+                        molecule_1["substituent"],
+
+                        molecule_2["substituent"]
+
+                    )
+                )
+
+
+                if not change["is_one_atom_change"]:
+                    continue
+
+
+                # For same atom count, only replacement
+                # should normally qualify
+                if change["change_type"] != "Replacement":
+                    continue
+
+
+                delta_pic50 = round(
+
+                    abs(
+                        molecule_1["pic50"]
+                        -
+                        molecule_2["pic50"]
+                    ),
+
+                    3
+
+                )
+
+
+                cliff = SideChainService.classify_cliff(
+                    delta_pic50
+                )
+
+
+                one_atom_pairs.append({
+
+                    "molecule_1": {
+
+                        "chembl_id":
+                            molecule_1["chembl_id"],
+
+                        "substituent":
+                            molecule_1["substituent"],
+
+                        "pic50":
+                            molecule_1["pic50"]
+
+                    },
+
+                    "molecule_2": {
+
+                        "chembl_id":
+                            molecule_2["chembl_id"],
+
+                        "substituent":
+                            molecule_2["substituent"],
+
+                        "pic50":
+                            molecule_2["pic50"]
+
+                    },
+
+                    "change_type":
+                        change["change_type"],
+
+                    "structural_change":
+                        change["structural_change"],
+
+                    "delta_pic50":
+                        delta_pic50,
+
+                    "cliff_type":
+                        cliff["cliff_type"],
+
+                    "is_potential_cliff":
+                        cliff["is_potential_cliff"]
+
+                })
+
+
+            # =================================
+            # SIZE DIFFERENCE = 1
+            #
+            # Check addition/removal
+            # =================================
+
+            next_size_group = grouped_by_size.get(
+                size + 1,
+                []
+            )
+
+
+            for molecule_1 in same_size_group:
+
+                for molecule_2 in next_size_group:
+
+                    total_pairs_checked += 1
+
+
+                    change = (
+                        SideChainService.analyze_atom_change(
+
+                            molecule_1["substituent"],
+
+                            molecule_2["substituent"]
+
+                        )
+                    )
+
+
+                    if not change["is_one_atom_change"]:
+                        continue
+
+
+                    if change["change_type"] not in [
+                        "Addition",
+                        "Removal"
+                    ]:
+                        continue
+
+
+                    delta_pic50 = round(
+
+                        abs(
+                            molecule_1["pic50"]
+                            -
+                            molecule_2["pic50"]
+                        ),
+
+                        3
+
+                    )
+
+
+                    cliff = (
+                        SideChainService.classify_cliff(
+                            delta_pic50
+                        )
+                    )
+
+
+                    one_atom_pairs.append({
+
+                        "molecule_1": {
+
+                            "chembl_id":
+                                molecule_1["chembl_id"],
+
+                            "substituent":
+                                molecule_1["substituent"],
+
+                            "pic50":
+                                molecule_1["pic50"]
+
+                        },
+
+                        "molecule_2": {
+
+                            "chembl_id":
+                                molecule_2["chembl_id"],
+
+                            "substituent":
+                                molecule_2["substituent"],
+
+                            "pic50":
+                                molecule_2["pic50"]
+
+                        },
+
+                        "change_type":
+                            change["change_type"],
+
+                        "structural_change":
+                            change["structural_change"],
+
+                        "delta_pic50":
+                            delta_pic50,
+
+                        "cliff_type":
+                            cliff["cliff_type"],
+
+                        "is_potential_cliff":
+                            cliff["is_potential_cliff"]
+
+                    })
+
+
+        # -------------------------------------
+        # REMOVE DUPLICATE PAIRS
+        # -------------------------------------
+
+        unique_pairs = []
+
+        seen_pairs = set()
+
+
+        for pair in one_atom_pairs:
+
+            molecule_1 = pair["molecule_1"]["chembl_id"]
+            molecule_2 = pair["molecule_2"]["chembl_id"]
+
+            pair_key = tuple(
+                sorted([
+                    str(molecule_1),
+                    str(molecule_2)
+                ])
+            )
+
+
+            if pair_key in seen_pairs:
+                continue
+
+
+            seen_pairs.add(pair_key)
+
+            unique_pairs.append(pair)
+
+
+        one_atom_pairs = unique_pairs
+
+
+        # -------------------------------------
+        # SORT BY LARGEST ACTIVITY DIFFERENCE
+        # -------------------------------------
+
+        one_atom_pairs.sort(
+
+            key=lambda pair:
+                pair["delta_pic50"],
 
             reverse=True
 
         )
 
 
-        # ----------------------------------
-        # Activity Cliff Analysis
-        # Compare DIFFERENT side chains
-        # ----------------------------------
+        # -------------------------------------
+        # SUMMARY
+        # -------------------------------------
 
-        activity_difference = None
+        strong_cliffs = sum(
 
-        possible_activity_cliff = False
+            1
 
-        cliff_type = "None"
+            for pair in one_atom_pairs
 
-        cliff_side_chain_1 = None
-        cliff_side_chain_2 = None
+            if pair["delta_pic50"] >= 2.0
 
-        cliff_molecule_high = None
-        cliff_molecule_low = None
-
-        cliff_message = (
-            "Not enough different side chains for "
-            "activity cliff analysis."
         )
 
 
-        # Need at least 2 different side chains
-        if len(side_chains) >= 2:
+        moderate_cliffs = sum(
 
-            largest_difference = -1
+            1
 
-            # Compare every side chain with every
-            # other side chain
-            for i in range(len(side_chains)):
+            for pair in one_atom_pairs
 
-                for j in range(i + 1, len(side_chains)):
+            if (
+                pair["delta_pic50"] >= 1.0
+                and pair["delta_pic50"] < 2.0
+            )
 
-                    chain_1 = side_chains[i]
-                    chain_2 = side_chains[j]
-
-                    # Compare the strongest molecule
-                    # from each side-chain group
-                    difference = abs(
-
-                        chain_1["max_pic50"]
-                        -
-                        chain_2["max_pic50"]
-
-                    )
-
-                    if difference > largest_difference:
-
-                        largest_difference = difference
-
-                        activity_difference = round(
-                            difference,
-                            3
-                        )
-
-                        # Determine which chain is higher
-                        if (
-                            chain_1["max_pic50"]
-                            >=
-                            chain_2["max_pic50"]
-                        ):
-
-                            cliff_side_chain_1 = (
-                                chain_1["side_chain"]
-                            )
-
-                            cliff_side_chain_2 = (
-                                chain_2["side_chain"]
-                            )
-
-                            cliff_molecule_high = (
-                                chain_1["max_molecule"]
-                            )
-
-                            cliff_molecule_low = (
-                                chain_2["max_molecule"]
-                            )
-
-                        else:
-
-                            cliff_side_chain_1 = (
-                                chain_2["side_chain"]
-                            )
-
-                            cliff_side_chain_2 = (
-                                chain_1["side_chain"]
-                            )
-
-                            cliff_molecule_high = (
-                                chain_2["max_molecule"]
-                            )
-
-                            cliff_molecule_low = (
-                                chain_1["max_molecule"]
-                            )
+        )
 
 
-            # ----------------------------------
-            # Cliff Thresholds
-            # ----------------------------------
+        replacement_pairs = sum(
 
-            if activity_difference >= 2.0:
+            1
 
-                possible_activity_cliff = True
+            for pair in one_atom_pairs
 
-                cliff_type = "Strong"
+            if pair["change_type"] == "Replacement"
 
-                cliff_message = (
-
-                    f"Possible strong activity cliff detected. "
-                    f"The largest difference between two different "
-                    f"side chains is {activity_difference} pIC50 units. "
-
-                    f"The higher-activity side chain is "
-                    f"'{cliff_side_chain_1}', while the lower-activity "
-                    f"side chain is '{cliff_side_chain_2}'."
-
-                )
-
-            elif activity_difference >= 1.0:
-
-                possible_activity_cliff = True
-
-                cliff_type = "Moderate"
-
-                cliff_message = (
-
-                    f"Possible moderate activity cliff detected. "
-                    f"The largest difference between two different "
-                    f"side chains is {activity_difference} pIC50 units. "
-
-                    f"This suggests that side-chain modification may "
-                    f"significantly affect biological activity."
-
-                )
-
-            else:
-
-                cliff_type = "None"
-
-                cliff_message = (
-
-                    f"No significant activity cliff detected between "
-                    f"different side chains. The largest observed "
-                    f"difference is {activity_difference} pIC50 units."
-
-                )
+        )
 
 
-        # ----------------------------------
-        # Return Analysis
-        # ----------------------------------
+        addition_removal_pairs = sum(
+
+            1
+
+            for pair in one_atom_pairs
+
+            if pair["change_type"] in [
+                "Addition",
+                "Removal"
+            ]
+
+        )
+
+
+        # -------------------------------------
+        # MESSAGE
+        # -------------------------------------
+
+        if len(one_atom_pairs) == 0:
+
+            message = (
+
+                "No molecule pairs with a single "
+                "atom addition, removal, or replacement "
+                "were found for this scaffold."
+
+            )
+
+        elif strong_cliffs > 0:
+
+            message = (
+
+                f"{strong_cliffs} strong potential "
+                f"activity cliff case(s) found among "
+                f"one-atom structural modifications."
+
+            )
+
+        elif moderate_cliffs > 0:
+
+            message = (
+
+                f"{moderate_cliffs} moderate potential "
+                f"activity cliff case(s) found among "
+                f"one-atom structural modifications."
+
+            )
+
+        else:
+
+            message = (
+
+                f"{len(one_atom_pairs)} one-atom "
+                f"structural modification pair(s) found, "
+                f"but no large activity cliff was detected."
+
+            )
+
+
+        # -------------------------------------
+        # RETURN RESULT
+        # -------------------------------------
 
         return {
 
-            "side_chains": side_chains,
+            "total_molecules":
+                len(processed_molecules),
 
-            "highest_activity": highest_molecule,
+            "total_pairs_checked":
+                total_pairs_checked,
 
-            "lowest_activity": lowest_molecule,
+            "valid_one_atom_pairs":
+                len(one_atom_pairs),
 
-            "activity_difference": activity_difference,
+            "replacement_pairs":
+                replacement_pairs,
 
-            "possible_activity_cliff": possible_activity_cliff,
+            "addition_removal_pairs":
+                addition_removal_pairs,
 
-            "cliff_type": cliff_type,
+            "strong_cliffs":
+                strong_cliffs,
 
-            "high_activity_side_chain": cliff_side_chain_1,
+            "moderate_cliffs":
+                moderate_cliffs,
 
-            "low_activity_side_chain": cliff_side_chain_2,
+            "one_atom_pairs":
+                one_atom_pairs,
 
-            "high_activity_molecule": cliff_molecule_high,
-
-            "low_activity_molecule": cliff_molecule_low,
-
-            "message": cliff_message
+            "message":
+                message
 
         }

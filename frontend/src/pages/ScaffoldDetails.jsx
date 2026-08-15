@@ -1,14 +1,5 @@
-// removed unused recharts imports
 import { useEffect, useState } from "react";
 import { useLocation, Navigate } from "react-router-dom";
-import {
-    BarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    Tooltip,
-    ResponsiveContainer
-} from "recharts";
 
 import api from "../services/api";
 import MoleculeCard from "../components/MoleculeCard";
@@ -23,7 +14,9 @@ export default function ScaffoldDetails() {
 
     const [loading, setLoading] = useState(true);
 
+
     useEffect(() => {
+
         if (!scaffold) return;
 
         api.post(
@@ -33,518 +26,571 @@ export default function ScaffoldDetails() {
             }
         )
         .then((res) => {
-            setMolecules(res.data.molecules);
+
+            setMolecules(
+                res.data.molecules || []
+            );
+
             setLoading(false);
+
         })
         .catch((err) => {
+
             console.log(err);
+
             setLoading(false);
+
         });
+
     }, [scaffold]);
 
+
     if (!scaffold) {
+
         return <Navigate to="/dashboard" />;
+
     }
 
-    const descriptors = scaffold.descriptors || {};
 
-    const drug = scaffold.druglikeness || {};
+    const descriptors =
+        scaffold.descriptors || {};
 
-    const ranking = scaffold.ranking || {};
-    const sideChainAnalysis =
-    scaffold.side_chain_analysis || {};
+    const drug =
+        scaffold.druglikeness || {};
 
-const sideChains =
-    sideChainAnalysis.side_chains || [];
+    const ranking =
+        scaffold.ranking || {};
 
-const highestActivity =
-    sideChainAnalysis.highest_activity;
 
-const lowestActivity =
-    sideChainAnalysis.lowest_activity;
+    // ------------------------------------
+    // ONE-ATOM ANALYSIS
+    // ------------------------------------
+
+    const oneAtomAnalysis =
+        scaffold.side_chain_analysis || {};
+
+    const pairs =
+        oneAtomAnalysis.one_atom_pairs || [];
+
 
     return (
 
         <div
             style={{
-                background:"#0f172a",
-                color:"white",
-                minHeight:"100vh",
-                padding:"40px"
+                background: "#0f172a",
+                color: "white",
+                minHeight: "100vh",
+                padding: "40px"
             }}
         >
 
+            {/* -------------------------------- */}
+            {/* PAGE TITLE */}
+            {/* -------------------------------- */}
+
             <h1>
-
                 Scaffold Details
-
             </h1>
 
-            <br/>
+            <br />
+
+
+            {/* -------------------------------- */}
+            {/* SCAFFOLD INFORMATION */}
+            {/* -------------------------------- */}
 
             <div
                 style={{
-                    display:"grid",
-                    gridTemplateColumns:"350px 1fr",
-                    gap:"40px"
+                    display: "grid",
+                    gridTemplateColumns: "350px 1fr",
+                    gap: "40px"
                 }}
             >
 
                 <div
                     style={{
-                        background:"#1e293b",
-                        padding:20,
-                        borderRadius:12
+                        background: "#1e293b",
+                        padding: 20,
+                        borderRadius: 12
                     }}
                 >
 
                     <div
                         dangerouslySetInnerHTML={{
-                            __html:scaffold.svg
+                            __html: scaffold.svg
                         }}
                     />
 
                 </div>
 
+
                 <div>
 
                     <h2>
-
                         Scaffold Information
-
                     </h2>
 
+
                     <p>
-
-                        <b>Rank :</b>
-
+                        <b>Rank :</b>{" "}
                         {scaffold.rank}
-
                     </p>
 
+
                     <p>
-
-                        <b>Overall Score :</b>
-
+                        <b>Overall Score :</b>{" "}
                         {ranking.overall_score}
-
                     </p>
 
+
                     <p>
-
-                        <b>Grade :</b>
-
+                        <b>Grade :</b>{" "}
                         {ranking.grade}
-
                     </p>
 
+
                     <p>
-
-                        <b>Status :</b>
-
+                        <b>Status :</b>{" "}
                         {ranking.label}
-
                     </p>
 
+
                     <p>
-
-                        <b>Drug Score :</b>
-
+                        <b>Drug Score :</b>{" "}
                         {drug.druglikeness_score}
-
                     </p>
 
+
                     <p>
-
-                        <b>QED :</b>
-
+                        <b>QED :</b>{" "}
                         {descriptors.qed}
-
                     </p>
 
                 </div>
 
             </div>
 
-            <br/>
 
-            <hr/>
-
-            <br/>
+            <br />
             <hr />
+            <br />
 
-<br />
 
-<h2>
+            {/* -------------------------------- */}
+            {/* ONE ATOM DIFFERENCE ANALYSIS */}
+            {/* -------------------------------- */}
 
-    Side Chain Analysis
+            <h2>
+                One-Atom Difference Analysis
+            </h2>
 
-</h2>
 
-<br />
+            <p
+                style={{
+                    color: "#cbd5e1"
+                }}
+            >
+                {
+                    oneAtomAnalysis.message
+                    ||
+                    "No one-atom analysis available."
+                }
+            </p>
 
-<div
-    style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit,minmax(300px,1fr))",
-        gap: 20
-    }}
->
 
-    {/* Highest Activity */}
+            <br />
 
-    <div
-        style={{
-            background: "#1e293b",
-            padding: 20,
-            borderRadius: 12
-        }}
-    >
 
-        <h3>
+            {/* SUMMARY BOXES */}
 
-            Highest pIC50
-
-        </h3>
-
-        {
-
-            highestActivity
-
-            ?
-
-            <>
-
-                <p>
-
-                    <b>pIC50 :</b>{" "}
-
-                    {highestActivity.pic50}
-
-                </p>
-
-                <p>
-
-                    <b>ChEMBL ID :</b>{" "}
-
-                    {highestActivity.chembl_id}
-
-                </p>
-
-                <p>
-
-                    <b>Side Chain :</b>
-
-                </p>
+            <div
+                style={{
+                    display: "flex",
+                    gap: 20,
+                    flexWrap: "wrap",
+                    marginBottom: 25
+                }}
+            >
 
                 <div
                     style={{
-                        wordBreak: "break-all",
-                        fontSize: 13
+                        background: "#1e293b",
+                        padding: 15,
+                        borderRadius: 10
                     }}
                 >
 
-                    {highestActivity.side_chain}
+                    <b>Total Pairs Checked:</b>
+                    {" "}
+                    {
+                        oneAtomAnalysis.total_pairs_checked
+                        || 0
+                    }
 
                 </div>
 
-            </>
-
-            :
-
-            <p>No data available</p>
-
-        }
-
-    </div>
-
-
-    {/* Lowest Activity */}
-
-    <div
-        style={{
-            background: "#1e293b",
-            padding: 20,
-            borderRadius: 12
-        }}
-    >
-
-        <h3>
-
-            Lowest pIC50
-
-        </h3>
-
-        {
-
-            lowestActivity
-
-            ?
-
-            <>
-
-                <p>
-
-                    <b>pIC50 :</b>{" "}
-
-                    {lowestActivity.pic50}
-
-                </p>
-
-                <p>
-
-                    <b>ChEMBL ID :</b>{" "}
-
-                    {lowestActivity.chembl_id}
-
-                </p>
-
-                <p>
-
-                    <b>Side Chain :</b>
-
-                </p>
 
                 <div
                     style={{
-                        wordBreak: "break-all",
-                        fontSize: 13
+                        background: "#1e293b",
+                        padding: 15,
+                        borderRadius: 10
                     }}
                 >
 
-                    {lowestActivity.side_chain}
+                    <b>Valid One-Atom Pairs:</b>
+                    {" "}
+                    {
+                        oneAtomAnalysis.valid_one_atom_pairs
+                        || 0
+                    }
 
                 </div>
 
-            </>
 
-            :
+                <div
+                    style={{
+                        background: "#7f1d1d",
+                        padding: 15,
+                        borderRadius: 10
+                    }}
+                >
 
-            <p>No data available</p>
+                    <b>Strong Potential Cliffs:</b>
+                    {" "}
+                    {
+                        oneAtomAnalysis.strong_cliffs
+                        || 0
+                    }
 
-        }
-
-    </div>
+                </div>
 
 
-    {/* Activity Cliff */}
+                <div
+                    style={{
+                        background: "#78350f",
+                        padding: 15,
+                        borderRadius: 10
+                    }}
+                >
 
-    <div
-        style={{
-            background: sideChainAnalysis.possible_activity_cliff
-                ? "#7f1d1d"
-                : "#1e293b",
+                    <b>Moderate Potential Cliffs:</b>
+                    {" "}
+                    {
+                        oneAtomAnalysis.moderate_cliffs
+                        || 0
+                    }
 
-            padding: 20,
+                </div>
 
-            borderRadius: 12
-        }}
-    >
+            </div>
 
-        <h3>
 
-            Activity Cliff Analysis
-
-        </h3>
-
-        <p>
-
-            <b>pIC50 Difference :</b>{" "}
-
-            {sideChainAnalysis.activity_difference}
-
-        </p>
-
-        <p>
-
-            <b>Status :</b>{" "}
+            {/* -------------------------------- */}
+            {/* PAIRS TABLE */}
+            {/* -------------------------------- */}
 
             {
 
-                sideChainAnalysis.possible_activity_cliff
+                pairs.length === 0
 
                 ?
 
-                "POSSIBLE ACTIVITY CLIFF"
+                (
+
+                    <div
+                        style={{
+                            background: "#1e293b",
+                            padding: 20,
+                            borderRadius: 12
+                        }}
+                    >
+
+                        No molecule pairs with a single
+                        atom-level difference were found
+                        for this scaffold.
+
+                    </div>
+
+                )
 
                 :
 
-                "NO STRONG CLIFF"
+                (
 
-            }
+                    <div
+                        style={{
+                            overflowX: "auto",
+                            borderRadius: 12
+                        }}
+                    >
 
-        </p>
+                        <table
+                            style={{
+                                width: "100%",
+                                borderCollapse: "collapse",
+                                background: "#1e293b",
+                                color: "white"
+                            }}
+                        >
 
-        <p>
+                            <thead>
 
-            {sideChainAnalysis.message}
+                                <tr
+                                    style={{
+                                        background: "#334155"
+                                    }}
+                                >
 
-        </p>
+                                    <th style={{ padding: 12 }}>
+                                        Molecule 1
+                                    </th>
 
-    </div>
+                                    <th style={{ padding: 12 }}>
+                                        Substituent 1
+                                    </th>
 
-</div>
+                                    <th style={{ padding: 12 }}>
+                                        pIC50 1
+                                    </th>
 
+                                    <th style={{ padding: 12 }}>
+                                        Molecule 2
+                                    </th>
 
-<br />
+                                    <th style={{ padding: 12 }}>
+                                        Substituent 2
+                                    </th>
 
-<div
-    style={{
-        background: "#1e293b",
-        padding: 20,
-        borderRadius: 12
-    }}
->
+                                    <th style={{ padding: 12 }}>
+                                        pIC50 2
+                                    </th>
 
-    <h3>
+                                    <th style={{ padding: 12 }}>
+                                        Structural Change
+                                    </th>
 
-        Side Chain vs Maximum pIC50
+                                    <th style={{ padding: 12 }}>
+                                        ΔpIC50
+                                    </th>
 
-    </h3>
+                                    <th style={{ padding: 12 }}>
+                                        Cliff Result
+                                    </th>
 
-    <div
-        style={{
-            width: "100%",
-            height: 450
-        }}
-    >
+                                </tr>
 
-        <ResponsiveContainer
-            width="100%"
-            height="100%"
-        >
-
-            <BarChart
-                data={sideChains}
-            >
-
-                <XAxis
-                    dataKey="side_chain"
-                    tick={{
-                        fill: "white",
-                        fontSize: 10
-                    }}
-                    interval={0}
-                    angle={-35}
-                    textAnchor="end"
-                    height={130}
-                />
-
-                <YAxis
-                    tick={{
-                        fill: "white"
-                    }}
-                />
-
-                <Tooltip />
-
-                <Bar
-                    dataKey="max_pic50"
-                    name="Maximum pIC50"
-                />
-
-            </BarChart>
-
-        </ResponsiveContainer>
-
-    </div>
-
-</div>
+                            </thead>
 
 
-<br />
+                            <tbody>
+
+                                {
+
+                                    pairs.map(
+
+                                        (pair, index) => (
+
+                                            <tr
+                                                key={index}
+
+                                                style={{
+
+                                                    borderBottom:
+                                                        "1px solid #475569",
 
 
-<h3>
+                                                    background:
 
-    Side Chain Statistics
+                                                        pair.delta_pic50 >= 2
 
-</h3>
+                                                        ?
 
-<div
-    style={{
-        overflowX: "auto"
-    }}
->
+                                                        "#7f1d1d"
 
-    <table
-        style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            background: "#1e293b"
-        }}
-    >
+                                                        :
 
-        <thead>
+                                                        pair.delta_pic50 >= 1
 
-            <tr>
+                                                        ?
 
-                <th>Side Chain</th>
+                                                        "#78350f"
 
-                <th>Count</th>
+                                                        :
 
-                <th>Min pIC50</th>
+                                                        "#1e293b"
 
-                <th>Mean pIC50</th>
+                                                }}
+                                            >
 
-                <th>Max pIC50</th>
+                                                <td
+                                                    style={{
+                                                        padding: 12
+                                                    }}
+                                                >
 
-            </tr>
+                                                    {
+                                                        pair.molecule_1
+                                                        ?.chembl_id
+                                                    }
 
-        </thead>
+                                                </td>
 
-        <tbody>
 
-            {
+                                                <td
+                                                    style={{
+                                                        padding: 12,
+                                                        maxWidth: 180,
+                                                        wordBreak:
+                                                            "break-all"
+                                                    }}
+                                                >
 
-                sideChains.map(
-                    (chain, index) => (
+                                                    {
+                                                        pair.molecule_1
+                                                        ?.substituent
+                                                    }
 
-                        <tr key={index}>
+                                                </td>
 
-                            <td
-                                style={{
-                                    padding: 12,
-                                    wordBreak: "break-all"
-                                }}
-                            >
 
-                                {chain.side_chain}
+                                                <td
+                                                    style={{
+                                                        padding: 12
+                                                    }}
+                                                >
 
-                            </td>
+                                                    {
+                                                        pair.molecule_1
+                                                        ?.pic50
+                                                    }
 
-                            <td>{chain.count}</td>
+                                                </td>
 
-                            <td>{chain.min_pic50}</td>
 
-                            <td>{chain.mean_pic50}</td>
+                                                <td
+                                                    style={{
+                                                        padding: 12
+                                                    }}
+                                                >
 
-                            <td>{chain.max_pic50}</td>
+                                                    {
+                                                        pair.molecule_2
+                                                        ?.chembl_id
+                                                    }
 
-                        </tr>
+                                                </td>
 
-                    )
+
+                                                <td
+                                                    style={{
+                                                        padding: 12,
+                                                        maxWidth: 180,
+                                                        wordBreak:
+                                                            "break-all"
+                                                    }}
+                                                >
+
+                                                    {
+                                                        pair.molecule_2
+                                                        ?.substituent
+                                                    }
+
+                                                </td>
+
+
+                                                <td
+                                                    style={{
+                                                        padding: 12
+                                                    }}
+                                                >
+
+                                                    {
+                                                        pair.molecule_2
+                                                        ?.pic50
+                                                    }
+
+                                                </td>
+
+
+                                                <td
+                                                    style={{
+                                                        padding: 12,
+                                                        fontWeight: "bold"
+                                                    }}
+                                                >
+
+                                                    {
+                                                        pair.structural_change
+                                                    }
+
+                                                </td>
+
+
+                                                <td
+                                                    style={{
+                                                        padding: 12,
+                                                        fontWeight: "bold",
+                                                        fontSize: 18
+                                                    }}
+                                                >
+
+                                                    {
+                                                        pair.delta_pic50
+                                                    }
+
+                                                </td>
+
+
+                                                <td
+                                                    style={{
+                                                        padding: 12,
+                                                        fontWeight: "bold"
+                                                    }}
+                                                >
+
+                                                    {
+                                                        pair.cliff_type
+                                                    }
+
+                                                </td>
+
+                                            </tr>
+
+                                        )
+
+                                    )
+
+                                }
+
+                            </tbody>
+
+                        </table>
+
+                    </div>
+
                 )
 
             }
 
-        </tbody>
 
-    </table>
+            <br />
+            <hr />
+            <br />
 
-</div>
 
-<br />
+            {/* -------------------------------- */}
+            {/* MOLECULES */}
+            {/* -------------------------------- */}
 
             <h2>
-
                 Molecules
-
             </h2>
+
 
             <p>
 
-                Total Molecules :
+                Total Molecules:
 
                 {" "}
 
@@ -552,25 +598,41 @@ const lowestActivity =
 
             </p>
 
-            <br/>
+
+            <br />
+
 
             {
 
                 loading &&
 
                 <h2>
-
                     Loading Molecules...
-
                 </h2>
 
             }
 
+
+            {
+
+                !loading
+                &&
+                molecules.length === 0
+                &&
+
+                <p>
+                    No molecule details available.
+                </p>
+
+            }
+
+
             <div
                 style={{
-                    display:"grid",
-                    gridTemplateColumns:"repeat(auto-fill,minmax(340px,1fr))",
-                    gap:20
+                    display: "grid",
+                    gridTemplateColumns:
+                        "repeat(auto-fill,minmax(340px,1fr))",
+                    gap: 20
                 }}
             >
 
@@ -578,7 +640,7 @@ const lowestActivity =
 
                     molecules.map(
 
-                        (molecule,index)=>(
+                        (molecule, index) => (
 
                             <MoleculeCard
 
@@ -595,6 +657,7 @@ const lowestActivity =
                 }
 
             </div>
+
 
         </div>
 
