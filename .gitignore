@@ -1,18 +1,18 @@
-backend/venv/
-backend/app/**/__pycache__/
-__pycache__/
-*.pyc
-.env
-# ChEMBL local database
-backend/database/*.db
-
-# Python
-__pycache__/
-*.pyc
-
 # Virtual environments
+backend/venv/
 .venv/
 venv/
+
+# Python cache
+__pycache__/
+*.pyc
+backend/app/**/__pycache__/
+
+# Environment variables
+.env
+
+# ChEMBL local database
+backend/database/*.db
 
 # Node
 node_modules/
