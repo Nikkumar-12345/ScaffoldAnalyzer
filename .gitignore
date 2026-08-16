@@ -16,3 +16,5 @@ backend/database/*.db
 
 # Node
 node_modules/
+
+
