@@ -2,6 +2,7 @@ from pathlib import Path
 import os
 import sqlite3
 import pandas as pd
+import requests
 
 
 class DatabaseService:
@@ -12,7 +13,10 @@ class DatabaseService:
 
     BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-    # Local database location
+    # --------------------------------------------------
+    # LOCAL DATABASE LOCATION
+    # --------------------------------------------------
+
     LOCAL_DATABASE_PATH = (
         BASE_DIR
         / "database"
@@ -20,22 +24,14 @@ class DatabaseService:
     )
 
     # --------------------------------------------------
-    # DATABASE PATH
+    # GITHUB DATABASE DOWNLOAD URL
     # --------------------------------------------------
 
-    @classmethod
-    def get_database_path(cls):
-
-        # Check whether an environment variable is provided.
-        # This will be useful on Render.
-        env_database_path = os.getenv("DATABASE_PATH")
-
-        if env_database_path:
-
-            return Path(env_database_path)
-
-        # Otherwise use the normal local database.
-        return cls.LOCAL_DATABASE_PATH
+    DATABASE_URL = (
+        "https://github.com/Nikkumar-12345/ScaffoldAnalyzer/"
+        "releases/download/v1.0-db/"
+        "scaffold_analyzer_chembl.db"
+    )
 
     # --------------------------------------------------
     # REQUIRED COLUMNS
@@ -55,19 +51,121 @@ class DatabaseService:
     ]
 
     # --------------------------------------------------
+    # GET DATABASE PATH
+    # --------------------------------------------------
+
+    @classmethod
+    def get_database_path(cls):
+
+        # If DATABASE_PATH is provided on Render,
+        # use that location.
+        env_database_path = os.getenv("DATABASE_PATH")
+
+        if env_database_path:
+            return Path(env_database_path)
+
+        # Otherwise use the normal local location.
+        return cls.LOCAL_DATABASE_PATH
+
+    # --------------------------------------------------
+    # DOWNLOAD DATABASE IF NEEDED
+    # --------------------------------------------------
+
+    @classmethod
+    def ensure_database_exists(cls):
+
+        database_path = cls.get_database_path()
+
+        # Database already exists locally
+        if database_path.exists():
+            print(
+                f"Using existing ChEMBL database: "
+                f"{database_path}"
+            )
+            return database_path
+
+        print("ChEMBL database not found locally.")
+        print("Downloading database from GitHub Release...")
+
+        # Create parent directory if needed
+        database_path.parent.mkdir(
+            parents=True,
+            exist_ok=True
+        )
+
+        # Download to a temporary file first.
+        # This prevents SQLite from trying to use a
+        # partially downloaded database.
+        temp_path = Path(
+            str(database_path) + ".download"
+        )
+
+        try:
+
+            with requests.get(
+                cls.DATABASE_URL,
+                stream=True,
+                timeout=300
+            ) as response:
+
+                response.raise_for_status()
+
+                total_downloaded = 0
+
+                with open(
+                    temp_path,
+                    "wb"
+                ) as file:
+
+                    for chunk in response.iter_content(
+                        chunk_size=1024 * 1024
+                    ):
+
+                        if chunk:
+
+                            file.write(chunk)
+
+                            total_downloaded += len(chunk)
+
+                            print(
+                                f"\rDownloaded: "
+                                f"{total_downloaded / (1024 * 1024):.1f} MB",
+                                end=""
+                            )
+
+            print()
+
+            # Move completed download to final location
+            temp_path.replace(
+                database_path
+            )
+
+            print(
+                "ChEMBL database downloaded successfully."
+            )
+
+            return database_path
+
+        except Exception as error:
+
+            # Remove incomplete file if download fails
+            if temp_path.exists():
+
+                temp_path.unlink()
+
+            raise Exception(
+                "Failed to download ChEMBL database. "
+                f"Details: {error}"
+            )
+
+    # --------------------------------------------------
     # CONNECT
     # --------------------------------------------------
 
     def get_connection(self):
 
-        database_path = self.get_database_path()
-
-        if not database_path.exists():
-
-            raise Exception(
-                "ChEMBL database was not found at: "
-                f"{database_path}"
-            )
+        # Download database only if it is missing
+        database_path = self.ensure_database_exists()
 
         return sqlite3.connect(
             str(database_path)
@@ -77,7 +175,10 @@ class DatabaseService:
     # GET TARGET BY UNIPROT ID
     # --------------------------------------------------
 
-    def get_target(self, uniprot_id):
+    def get_target(
+        self,
+        uniprot_id
+    ):
 
         uniprot_id = uniprot_id.strip()
 

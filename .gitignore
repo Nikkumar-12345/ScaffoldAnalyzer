@@ -11,10 +11,13 @@ backend/app/**/__pycache__/
 # Environment variables
 .env
 
-# ChEMBL local database
+# ChEMBL local database and generated database files
 backend/database/*.db
+backend/database/*.sql
+backend/database/*.download
+
+# Cloudflare Wrangler files
+backend/.wrangler/
 
 # Node
 node_modules/
-
-
