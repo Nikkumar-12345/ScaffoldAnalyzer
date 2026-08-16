@@ -1,4 +1,3 @@
-from app.services.uniprot_service import UniProtService
 from app.services.chembl_service import ChEMBLService
 from app.services.database_service import DatabaseService
 from app.services.dataframe_service import DataFrameService
@@ -8,8 +7,6 @@ from app.services.scaffold_service import ScaffoldService
 class AnalysisService:
 
     def __init__(self):
-
-        self.uniprot = UniProtService()
 
         # Local compact ChEMBL database
         self.database = DatabaseService()
@@ -24,14 +21,6 @@ class AnalysisService:
     def analyze(self, uniprot_id):
 
         uniprot_id = uniprot_id.strip()
-
-        # ------------------------------------
-        # Protein Information
-        # ------------------------------------
-
-        protein = self.uniprot.get_protein(
-            uniprot_id
-        )
 
         # ------------------------------------
         # FIRST: SEARCH LOCAL DATABASE
@@ -120,9 +109,7 @@ class AnalysisService:
 
             activities = (
                 self.chembl.download_activities(
-
                     target["target_chembl_id"]
-
                 )
             )
 
@@ -130,6 +117,25 @@ class AnalysisService:
                 f"Downloaded {len(activities)} "
                 "activity records from API."
             )
+
+        # ------------------------------------
+        # PROTEIN INFORMATION
+        # FROM LOCAL/API TARGET DATA
+        # ------------------------------------
+
+        protein = {
+
+            "protein_name":
+                target.get("pref_name", ""),
+
+            # Gene name is not stored in
+            # the current local database.
+            "gene_name": "",
+
+            "organism":
+                target.get("organism", "")
+
+        }
 
         # ------------------------------------
         # CLEAN ACTIVITY DATA
