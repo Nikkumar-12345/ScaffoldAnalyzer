@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 import sqlite3
 import pandas as pd
 
@@ -6,16 +7,39 @@ import pandas as pd
 class DatabaseService:
 
     # --------------------------------------------------
-    # DATABASE PATH
+    # BASE DIRECTORY
     # --------------------------------------------------
 
     BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-    DATABASE_PATH = (
+    # Local database location
+    LOCAL_DATABASE_PATH = (
         BASE_DIR
         / "database"
         / "scaffold_analyzer_chembl.db"
     )
+
+    # --------------------------------------------------
+    # DATABASE PATH
+    # --------------------------------------------------
+
+    @classmethod
+    def get_database_path(cls):
+
+        # Check whether an environment variable is provided.
+        # This will be useful on Render.
+        env_database_path = os.getenv("DATABASE_PATH")
+
+        if env_database_path:
+
+            return Path(env_database_path)
+
+        # Otherwise use the normal local database.
+        return cls.LOCAL_DATABASE_PATH
+
+    # --------------------------------------------------
+    # REQUIRED COLUMNS
+    # --------------------------------------------------
 
     REQUIRED_COLUMNS = [
         "activity_id",
@@ -36,15 +60,17 @@ class DatabaseService:
 
     def get_connection(self):
 
-        if not self.DATABASE_PATH.exists():
+        database_path = self.get_database_path()
+
+        if not database_path.exists():
 
             raise Exception(
-                "Local ChEMBL database was not found at: "
-                f"{self.DATABASE_PATH}"
+                "ChEMBL database was not found at: "
+                f"{database_path}"
             )
 
         return sqlite3.connect(
-            str(self.DATABASE_PATH)
+            str(database_path)
         )
 
     # --------------------------------------------------
