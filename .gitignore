@@ -3,3 +3,16 @@ backend/app/**/__pycache__/
 __pycache__/
 *.pyc
 .env
+# ChEMBL local database
+backend/database/*.db
+
+# Python
+__pycache__/
+*.pyc
+
+# Virtual environments
+.venv/
+venv/
+
+# Node
+node_modules/
