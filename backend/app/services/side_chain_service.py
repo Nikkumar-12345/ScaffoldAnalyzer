@@ -1,9 +1,18 @@
 from rdkit import Chem
 from collections import defaultdict
-from itertools import combinations
+from itertools import combinations, count
+import heapq
 
 
 class SideChainService:
+
+    # -----------------------------------------
+    # SETTINGS
+    # -----------------------------------------
+
+    MIN_DELTA_PIC50 = 1.0
+    TOP_PAIRS_LIMIT = 50
+
 
     # -----------------------------------------
     # GET SIDE CHAIN / SUBSTITUENT
@@ -98,6 +107,7 @@ class SideChainService:
 
         return ".".join(sorted(fragments))
 
+
     # -----------------------------------------
     # GET ATOM COUNTS
     # -----------------------------------------
@@ -126,12 +136,16 @@ class SideChainService:
 
         return dict(counts)
 
+
     # -----------------------------------------
-    # ANALYZE ATOM CHANGE USING PRECOMPUTED COUNTS
+    # ANALYZE ATOM CHANGE
     # -----------------------------------------
 
     @staticmethod
-    def analyze_atom_change_from_counts(counts_1, counts_2):
+    def analyze_atom_change_from_counts(
+        counts_1,
+        counts_2
+    ):
 
         elements = set(counts_1) | set(counts_2)
 
@@ -146,27 +160,38 @@ class SideChainService:
             )
 
             if difference > 0:
-                added.extend([element] * difference)
+
+                added.extend(
+                    [element] * difference
+                )
 
             elif difference < 0:
-                removed.extend([element] * abs(difference))
 
+                removed.extend(
+                    [element] * abs(difference)
+                )
+
+        # One atom addition
         if len(added) == 1 and len(removed) == 0:
 
             return {
                 "is_one_atom_change": True,
                 "change_type": "Addition",
-                "structural_change": f"Added {added[0]}"
+                "structural_change":
+                    f"Added {added[0]}"
             }
 
+        # One atom removal
         if len(removed) == 1 and len(added) == 0:
 
             return {
                 "is_one_atom_change": True,
                 "change_type": "Removal",
-                "structural_change": f"Removed {removed[0]}"
+                "structural_change":
+                    f"Removed {removed[0]}"
             }
 
+        # One atom replacement
         if len(removed) == 1 and len(added) == 1:
 
             return {
@@ -182,6 +207,7 @@ class SideChainService:
             "structural_change": None
         }
 
+
     # -----------------------------------------
     # ACTIVITY CLIFF CLASSIFICATION
     # -----------------------------------------
@@ -192,14 +218,16 @@ class SideChainService:
         if delta_pic50 >= 2.0:
 
             return {
-                "cliff_type": "Strong Potential Cliff",
+                "cliff_type":
+                    "Strong Potential Cliff",
                 "is_potential_cliff": True
             }
 
         if delta_pic50 >= 1.0:
 
             return {
-                "cliff_type": "Moderate Potential Cliff",
+                "cliff_type":
+                    "Moderate Potential Cliff",
                 "is_potential_cliff": True
             }
 
@@ -208,12 +236,17 @@ class SideChainService:
             "is_potential_cliff": False
         }
 
+
     # -----------------------------------------
     # CREATE RESULT PAIR
     # -----------------------------------------
 
     @staticmethod
-    def build_pair(molecule_1, molecule_2, change):
+    def build_pair(
+        molecule_1,
+        molecule_2,
+        change
+    ):
 
         delta_pic50 = round(
             abs(
@@ -228,100 +261,218 @@ class SideChainService:
         )
 
         return {
+
             "molecule_1": {
-                "chembl_id": molecule_1["chembl_id"],
-                "substituent": molecule_1["substituent"],
-                "pic50": molecule_1["pic50"]
+
+                "chembl_id":
+                    molecule_1["chembl_id"],
+
+                "substituent":
+                    molecule_1["substituent"],
+
+                "pic50":
+                    molecule_1["pic50"]
+
             },
+
             "molecule_2": {
-                "chembl_id": molecule_2["chembl_id"],
-                "substituent": molecule_2["substituent"],
-                "pic50": molecule_2["pic50"]
+
+                "chembl_id":
+                    molecule_2["chembl_id"],
+
+                "substituent":
+                    molecule_2["substituent"],
+
+                "pic50":
+                    molecule_2["pic50"]
+
             },
-            "change_type": change["change_type"],
-            "structural_change": change["structural_change"],
-            "delta_pic50": delta_pic50,
-            "cliff_type": cliff["cliff_type"],
+
+            "change_type":
+                change["change_type"],
+
+            "structural_change":
+                change["structural_change"],
+
+            "delta_pic50":
+                delta_pic50,
+
+            "cliff_type":
+                cliff["cliff_type"],
+
             "is_potential_cliff":
                 cliff["is_potential_cliff"]
+
         }
 
+
     # -----------------------------------------
-    # MAIN ANALYSIS
-    #
-    # molecules passed here belong to ONE
-    # scaffold only.
+    # STORE ONLY TOP PAIRS
     # -----------------------------------------
 
     @staticmethod
-    def analyze(scaffold_smiles, molecules):
+    def add_top_pair(
+        heap,
+        pair,
+        pair_counter
+    ):
+
+        delta = pair["delta_pic50"]
+
+        # Do not store weak differences
+        if delta < SideChainService.MIN_DELTA_PIC50:
+            return
+
+        # Unique ID prevents heap from trying
+        # to compare dictionaries when two pairs
+        # have the same delta.
+        unique_id = next(pair_counter)
+
+        heap_item = (
+            delta,
+            unique_id,
+            pair
+        )
+
+        # Heap has space
+        if len(heap) < SideChainService.TOP_PAIRS_LIMIT:
+
+            heapq.heappush(
+                heap,
+                heap_item
+            )
+
+        # Replace smallest result when the new
+        # result has a larger delta.
+        elif delta > heap[0][0]:
+
+            heapq.heapreplace(
+                heap,
+                heap_item
+            )
+
+
+    # -----------------------------------------
+    # MAIN ANALYSIS
+    # -----------------------------------------
+
+    @staticmethod
+    def analyze(
+        scaffold_smiles,
+        molecules
+    ):
 
         if (
             not scaffold_smiles
             or scaffold_smiles == "NO_SCAFFOLD"
             or len(molecules) < 2
         ):
+
             return {
-                "total_molecules": len(molecules),
-                "total_pairs_checked": 0,
-                "valid_one_atom_pairs": 0,
-                "replacement_pairs": 0,
-                "addition_removal_pairs": 0,
-                "strong_cliffs": 0,
-                "moderate_cliffs": 0,
-                "one_atom_pairs": [],
+
+                "total_molecules":
+                    len(molecules),
+
+                "total_pairs_checked":
+                    0,
+
+                "valid_one_atom_pairs":
+                    0,
+
+                "replacement_pairs":
+                    0,
+
+                "addition_removal_pairs":
+                    0,
+
+                "strong_cliffs":
+                    0,
+
+                "moderate_cliffs":
+                    0,
+
+                "one_atom_pairs":
+                    [],
+
+                "stored_pairs":
+                    0,
+
                 "message":
                     "Not enough valid molecules or no valid "
                     "Murcko scaffold for one-atom analysis."
+
             }
 
-        processed_molecules = []
 
         # -------------------------------------
-        # Extract each molecule's side chain ONCE
+        # PREPROCESS MOLECULES
         # -------------------------------------
+
+        processed_molecules = []
 
         for molecule in molecules:
 
             smiles = molecule.get("smiles")
             pic50 = molecule.get("pic50")
 
-            if smiles is None or pic50 is None:
+            if (
+                smiles is None
+                or pic50 is None
+            ):
                 continue
 
             try:
+
                 pic50 = float(pic50)
-            except (TypeError, ValueError):
+
+            except (
+                TypeError,
+                ValueError
+            ):
                 continue
 
-            side_chain = SideChainService.get_side_chain(
-                smiles,
-                scaffold_smiles
+            side_chain = (
+                SideChainService.get_side_chain(
+                    smiles,
+                    scaffold_smiles
+                )
             )
 
             if side_chain is None:
                 continue
 
-            atom_counts = SideChainService.get_atom_counts(
-                side_chain
+            atom_counts = (
+                SideChainService.get_atom_counts(
+                    side_chain
+                )
             )
 
             processed_molecules.append(
                 {
-                    "chembl_id": molecule.get("chembl_id"),
-                    "smiles": smiles,
-                    "pic50": pic50,
-                    "substituent": side_chain,
-                    "atom_counts": atom_counts,
-                    "atom_count": sum(atom_counts.values())
+
+                    "chembl_id":
+                        molecule.get("chembl_id"),
+
+                    "pic50":
+                        pic50,
+
+                    "substituent":
+                        side_chain,
+
+                    "atom_counts":
+                        atom_counts,
+
+                    "atom_count":
+                        sum(
+                            atom_counts.values()
+                        )
+
                 }
             )
 
-        # Release input reference as early as possible
-        molecules = None
 
         # -------------------------------------
-        # GROUP BY TOTAL HEAVY ATOM COUNT
+        # GROUP BY TOTAL ATOM COUNT
         # -------------------------------------
 
         grouped_by_size = defaultdict(list)
@@ -330,20 +481,47 @@ class SideChainService:
 
             grouped_by_size[
                 molecule["atom_count"]
-            ].append(molecule)
+            ].append(
+                molecule
+            )
 
-        one_atom_pairs = []
-        total_pairs_checked = 0
-
-        sizes = sorted(grouped_by_size.keys())
 
         # -------------------------------------
-        # SAME SIZE = POSSIBLE REPLACEMENT
+        # MEMORY-EFFICIENT RESULT STORAGE
+        # -------------------------------------
+
+        top_pairs_heap = []
+
+        # Prevent equal delta values from causing
+        # dictionary comparison errors in heapq.
+        pair_counter = count()
+
+        total_pairs_checked = 0
+        valid_one_atom_pairs = 0
+        replacement_pairs = 0
+        addition_removal_pairs = 0
+        strong_cliffs = 0
+        moderate_cliffs = 0
+
+        sizes = sorted(
+            grouped_by_size.keys()
+        )
+
+
+        # -------------------------------------
+        # CHECK PAIRS
         # -------------------------------------
 
         for size in sizes:
 
-            same_size_group = grouped_by_size[size]
+            same_size_group = (
+                grouped_by_size[size]
+            )
+
+
+            # ---------------------------------
+            # SAME SIZE → REPLACEMENT
+            # ---------------------------------
 
             for molecule_1, molecule_2 in combinations(
                 same_size_group,
@@ -353,7 +531,8 @@ class SideChainService:
                 total_pairs_checked += 1
 
                 change = (
-                    SideChainService.analyze_atom_change_from_counts(
+                    SideChainService
+                    .analyze_atom_change_from_counts(
                         molecule_1["atom_counts"],
                         molecule_2["atom_counts"]
                     )
@@ -361,11 +540,15 @@ class SideChainService:
 
                 if (
                     not change["is_one_atom_change"]
-                    or change["change_type"] != "Replacement"
+                    or change["change_type"]
+                    != "Replacement"
                 ):
                     continue
 
-                one_atom_pairs.append(
+                valid_one_atom_pairs += 1
+                replacement_pairs += 1
+
+                pair = (
                     SideChainService.build_pair(
                         molecule_1,
                         molecule_2,
@@ -373,14 +556,33 @@ class SideChainService:
                     )
                 )
 
+                delta = pair["delta_pic50"]
+
+                if delta >= 2.0:
+
+                    strong_cliffs += 1
+
+                elif delta >= SideChainService.MIN_DELTA_PIC50:
+
+                    moderate_cliffs += 1
+
+                SideChainService.add_top_pair(
+                    top_pairs_heap,
+                    pair,
+                    pair_counter
+                )
+
+
             # ---------------------------------
-            # SIZE DIFFERENCE = 1
-            # POSSIBLE ADDITION / REMOVAL
+            # SIZE DIFFERENCE OF 1
+            # → ADDITION / REMOVAL
             # ---------------------------------
 
-            next_size_group = grouped_by_size.get(
-                size + 1,
-                []
+            next_size_group = (
+                grouped_by_size.get(
+                    size + 1,
+                    []
+                )
             )
 
             if not next_size_group:
@@ -403,11 +605,17 @@ class SideChainService:
                     if (
                         not change["is_one_atom_change"]
                         or change["change_type"]
-                        not in ["Addition", "Removal"]
+                        not in [
+                            "Addition",
+                            "Removal"
+                        ]
                     ):
                         continue
 
-                    one_atom_pairs.append(
+                    valid_one_atom_pairs += 1
+                    addition_removal_pairs += 1
+
+                    pair = (
                         SideChainService.build_pair(
                             molecule_1,
                             molecule_2,
@@ -415,44 +623,45 @@ class SideChainService:
                         )
                     )
 
+                    delta = pair["delta_pic50"]
+
+                    if delta >= 2.0:
+
+                        strong_cliffs += 1
+
+                    elif delta >= SideChainService.MIN_DELTA_PIC50:
+
+                        moderate_cliffs += 1
+
+                    SideChainService.add_top_pair(
+                        top_pairs_heap,
+                        pair,
+                        pair_counter
+                    )
+
+
         # -------------------------------------
-        # Sort largest activity differences first
+        # GET TOP PAIRS
         # -------------------------------------
 
-        one_atom_pairs.sort(
-            key=lambda pair: pair["delta_pic50"],
-            reverse=True
-        )
+        one_atom_pairs = [
 
-        strong_cliffs = sum(
-            1
-            for pair in one_atom_pairs
-            if pair["delta_pic50"] >= 2.0
-        )
+            item[2]
 
-        moderate_cliffs = sum(
-            1
-            for pair in one_atom_pairs
-            if (
-                pair["delta_pic50"] >= 1.0
-                and pair["delta_pic50"] < 2.0
+            for item in sorted(
+                top_pairs_heap,
+                key=lambda item: item[0],
+                reverse=True
             )
-        )
 
-        replacement_pairs = sum(
-            1
-            for pair in one_atom_pairs
-            if pair["change_type"] == "Replacement"
-        )
+        ]
 
-        addition_removal_pairs = sum(
-            1
-            for pair in one_atom_pairs
-            if pair["change_type"]
-            in ["Addition", "Removal"]
-        )
 
-        if not one_atom_pairs:
+        # -------------------------------------
+        # CREATE MESSAGE
+        # -------------------------------------
+
+        if valid_one_atom_pairs == 0:
 
             message = (
                 "No molecule pairs with a single atom "
@@ -479,19 +688,49 @@ class SideChainService:
         else:
 
             message = (
-                f"{len(one_atom_pairs)} one-atom structural "
-                f"modification pair(s) found, but no large "
-                f"activity cliff was detected."
+                f"{valid_one_atom_pairs} one-atom structural "
+                f"modification pair(s) found, but no "
+                f"activity difference of "
+                f"{SideChainService.MIN_DELTA_PIC50} pIC50 "
+                f"or greater was detected."
             )
 
+
+        # -------------------------------------
+        # RESPONSE
+        # -------------------------------------
+
         return {
-            "total_molecules": len(processed_molecules),
-            "total_pairs_checked": total_pairs_checked,
-            "valid_one_atom_pairs": len(one_atom_pairs),
-            "replacement_pairs": replacement_pairs,
-            "addition_removal_pairs": addition_removal_pairs,
-            "strong_cliffs": strong_cliffs,
-            "moderate_cliffs": moderate_cliffs,
-            "one_atom_pairs": one_atom_pairs,
-            "message": message
+
+            "total_molecules":
+                len(processed_molecules),
+
+            "total_pairs_checked":
+                total_pairs_checked,
+
+            "valid_one_atom_pairs":
+                valid_one_atom_pairs,
+
+            "replacement_pairs":
+                replacement_pairs,
+
+            "addition_removal_pairs":
+                addition_removal_pairs,
+
+            "strong_cliffs":
+                strong_cliffs,
+
+            "moderate_cliffs":
+                moderate_cliffs,
+
+            # Maximum 50 pairs with ΔpIC50 >= 1.0
+            "one_atom_pairs":
+                one_atom_pairs,
+
+            "stored_pairs":
+                len(one_atom_pairs),
+
+            "message":
+                message
+
         }
