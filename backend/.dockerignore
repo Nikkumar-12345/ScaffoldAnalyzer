@@ -1,0 +1,28 @@
+# Virtual environments
+venv/
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environment secrets
+.env
+.env.*
+
+# Do not copy local database files into Docker
+database/*.db
+database/*.sql
+database/*.download
+
+# Cloudflare / Wrangler
+.wrangler/
+
+# Git
+.git/
+
+# Editor files
+.vscode/
+.idea/
