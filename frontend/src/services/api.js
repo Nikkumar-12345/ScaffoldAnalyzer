@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-    baseURL: "https://scaffoldanalyzer-1.onrender.com",
+    baseURL: "https://scaffold-analyzer-backend-docker.onrender.com",
     headers: {
         "Content-Type": "application/json"
     }
