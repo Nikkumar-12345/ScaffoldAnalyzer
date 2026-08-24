@@ -4,6 +4,7 @@ import SummaryCard from "../components/SummaryCard";
 import CompositionChart from "../components/CompositionChart";
 import ScaffoldCard from "../components/ScaffoldCard";
 
+
 export default function Dashboard() {
 
     const location = useLocation();
@@ -12,17 +13,32 @@ export default function Dashboard() {
 
     const result = location.state?.result;
 
+
+    // --------------------------------------------------
+    // NO RESULT
+    // --------------------------------------------------
+
     if (!result) {
 
         return <Navigate to="/" />;
 
     }
 
+
+    // --------------------------------------------------
+    // RESULT DATA
+    // --------------------------------------------------
+
     const summary = result.summary;
 
     const scaffolds = result.top_scaffolds;
 
     const chartData = result.charts.composition;
+
+
+    // --------------------------------------------------
+    // INVESTIGATE SCAFFOLD
+    // --------------------------------------------------
 
     function investigate(scaffold) {
 
@@ -38,23 +54,32 @@ export default function Dashboard() {
 
     }
 
+
+    // --------------------------------------------------
+    // DASHBOARD
+    // --------------------------------------------------
+
     return (
 
         <div
 
             style={{
 
-                padding:40,
+                padding: 40,
 
-                background:"#0f172a",
+                background: "#0f172a",
 
-                color:"white",
+                color: "white",
 
-                minHeight:"100vh"
+                minHeight: "100vh"
 
             }}
 
         >
+
+            {/* ========================================= */}
+            {/* TITLE */}
+            {/* ========================================= */}
 
             <h1>
 
@@ -62,42 +87,83 @@ export default function Dashboard() {
 
             </h1>
 
-            <br/>
+
+            <br />
+
+
+            {/* ========================================= */}
+            {/* SUMMARY */}
+            {/* ========================================= */}
 
             <div
 
                 style={{
 
-                    display:"grid",
+                    display: "grid",
 
-                    gridTemplateColumns:"repeat(4,1fr)",
+                    gridTemplateColumns:
+                        "repeat(4, 1fr)",
 
-                    gap:20
+                    gap: 20
 
                 }}
 
             >
 
-                <SummaryCard title="Protein" value={summary.protein} />
+                <SummaryCard
+                    title="Protein"
+                    value={summary.protein}
+                />
 
-                <SummaryCard title="Gene" value={summary.gene} />
+                <SummaryCard
+                    title="Gene"
+                    value={summary.gene}
+                />
 
-                <SummaryCard title="Target" value={summary.chembl_target} />
+                <SummaryCard
+                    title="Target"
+                    value={summary.chembl_target}
+                />
 
-                <SummaryCard title="Activity Records" value={summary.activity_records} />
+                <SummaryCard
+                    title="Activity Records"
+                    value={summary.activity_records}
+                />
 
-                <SummaryCard title="Unique Molecules" value={summary.unique_molecules} />
+                <SummaryCard
+                    title="Unique Molecules"
+                    value={summary.unique_molecules}
+                />
 
-                <SummaryCard title="Unique Scaffolds" value={summary.unique_scaffolds} />
+                <SummaryCard
+                    title="Unique Scaffolds"
+                    value={summary.unique_scaffolds}
+                />
 
-                <SummaryCard title="Largest Scaffold %" value={summary.largest_scaffold_percentage + "%"} />
+                <SummaryCard
+                    title="Largest Scaffold %"
+                    value={
+                        summary.largest_scaffold_percentage
+                        + "%"
+                    }
+                />
 
-                <SummaryCard title="Average pIC50" value={summary.average_pic50} />
+                <SummaryCard
+                    title="Average pIC50"
+                    value={summary.average_pic50}
+                />
 
             </div>
 
-            <br/>
-            <br/>
+
+            <br />
+
+            <br />
+
+
+            {/* ========================================= */}
+            {/* COMPOSITION CHART */}
+            {/* ========================================= */}
 
             <h2>
 
@@ -105,14 +171,22 @@ export default function Dashboard() {
 
             </h2>
 
+
             <CompositionChart
 
                 data={chartData}
 
             />
 
-            <br/>
-            <br/>
+
+            <br />
+
+            <br />
+
+
+            {/* ========================================= */}
+            {/* TOP SCAFFOLDS */}
+            {/* ========================================= */}
 
             <h2>
 
@@ -120,15 +194,17 @@ export default function Dashboard() {
 
             </h2>
 
+
             <div
 
                 style={{
 
-                    display:"grid",
+                    display: "grid",
 
-                    gridTemplateColumns:"repeat(auto-fill,minmax(460px,1fr))",
+                    gridTemplateColumns:
+                        "repeat(auto-fill,minmax(460px,1fr))",
 
-                    gap:20
+                    gap: 20
 
                 }}
 
@@ -146,7 +222,26 @@ export default function Dashboard() {
 
                                 scaffold={scaffold}
 
-                                onInvestigate={investigate}
+                                onInvestigate={
+                                    investigate
+                                }
+
+                                /*
+                                 * IMPORTANT:
+                                 *
+                                 * Pass the currently
+                                 * analyzed target to
+                                 * ScaffoldCard.
+                                 *
+                                 * Feature A uses this
+                                 * to exclude the current
+                                 * target and show only
+                                 * OTHER targets.
+                                 */
+
+                                currentTarget={
+                                    summary.chembl_target
+                                }
 
                             />
 
