@@ -24,9 +24,9 @@ COPY . .
 # Create database directory
 RUN mkdir -p /app/database
 
-# Download the ChEMBL SQLite database during IMAGE BUILD
+# Download the INDEXED ChEMBL SQLite database during IMAGE BUILD
 RUN curl -L --fail \
-    "https://github.com/Nikkumar-12345/ScaffoldAnalyzer/releases/download/v1.0-db/scaffold_analyzer_chembl.db" \
+    "https://github.com/Nikkumar-12345/ScaffoldAnalyzer/releases/download/v1.1-indexed-db/scaffold_analyzer_chembl.db" \
     -o /app/database/scaffold_analyzer_chembl.db
 
 # Verify that database was downloaded
