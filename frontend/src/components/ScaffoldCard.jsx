@@ -1,4 +1,5 @@
 import { useState } from "react";
+import api from "../services/api";
 
 export default function ScaffoldCard({
     scaffold,
@@ -32,36 +33,22 @@ export default function ScaffoldCard({
 
         try {
 
-            const response = await fetch(
-                "http://localhost:8000/scaffold/cross-targets",
+            const response = await api.post(
+                "/scaffold/cross-targets",
                 {
-                    method: "POST",
 
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
+                    scaffold_smiles:
+                        scaffold.scaffold_smiles,
 
-                    body: JSON.stringify({
+                    current_target_chembl_id:
+                        typeof currentTarget === "object"
+                            ? currentTarget?.target_chembl_id
+                            : currentTarget
 
-                        scaffold_smiles:
-                            scaffold.scaffold_smiles,
-
-                        current_target_chembl_id:
-                            currentTarget
-
-                    })
                 }
             );
 
-            if (!response.ok) {
-
-                throw new Error(
-                    `Backend returned ${response.status}`
-                );
-
-            }
-
-            const data = await response.json();
+            const data = response.data;
 
             setOtherTargets(
                 data.targets || []
