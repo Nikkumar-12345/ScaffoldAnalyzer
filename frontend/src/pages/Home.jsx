@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import Navbar from "../components/Navbar";
-import api from "../services/api";
+import api, { runAnalysis } from "../services/api";
 
 import "../App.css";
 
@@ -10,119 +10,80 @@ export default function Home() {
 
     const [uniprot, setUniprot] = useState("");
     const [loading, setLoading] = useState(false);
+    const [progress, setProgress] = useState(null);
+    const [error, setError] = useState("");
+
+    const abortRef = useRef(null);
 
     const navigate = useNavigate();
 
+
+    // Wake the backend up as soon as the page opens, so it is ready
+    // by the time the user submits (free hosting sleeps when idle).
+    useEffect(() => {
+
+        api.get("/health").catch(() => {});
+
+        return () => abortRef.current?.abort();
+
+    }, []);
+
+
     async function analyzeTarget() {
 
-        if (uniprot.trim() === "") {
-            alert("Please enter a UniProt ID");
+        const id = uniprot.trim();
+
+        if (id === "") {
+            setError("Please enter a UniProt ID (for example P00533).");
             return;
         }
 
+        const controller = new AbortController();
+        abortRef.current = controller;
+
+        setError("");
+        setLoading(true);
+        setProgress({
+            progress: 0,
+            stage: "Connecting to analysis server..."
+        });
+
         try {
 
-            setLoading(true);
-
-            console.log("Starting analysis for:", uniprot.trim());
-
-            const response = await api.post(
-                "/analyze/",
-                {
-                    uniprot_id: uniprot.trim()
-                }
+            const result = await runAnalysis(
+                id,
+                (update) => setProgress(update),
+                controller.signal
             );
 
-            console.log("===== SUCCESS =====");
-            console.log(response.data);
+            // "all_scaffolds" is not displayed anywhere and can be
+            // large; keeping it out of the browser history state avoids
+            // size limits (notably in Safari).
+            // eslint-disable-next-line no-unused-vars
+            const { all_scaffolds, ...dashboardResult } = result;
 
             navigate("/dashboard", {
                 state: {
-                    result: response.data
+                    result: dashboardResult
                 }
             });
 
         }
         catch (err) {
 
-            console.log("===== ANALYSIS ERROR =====");
-            console.error(err);
-
-            if (err.response) {
-
-                console.log(
-                    "Backend responded with status:",
-                    err.response.status
-                );
-
-                console.log(
-                    "Backend response:",
-                    err.response.data
-                );
-
-                let errorMessage = "The backend returned an error.";
-
-                if (
-                    err.response.data &&
-                    err.response.data.detail
-                ) {
-
-                    if (
-                        typeof err.response.data.detail === "string"
-                    ) {
-                        errorMessage = err.response.data.detail;
-                    }
-                    else {
-                        errorMessage = JSON.stringify(
-                            err.response.data.detail,
-                            null,
-                            2
-                        );
-                    }
-
-                }
-
-                alert(
-                    "Backend Error (" +
-                    err.response.status +
-                    ")\n\n" +
-                    errorMessage
-                );
-
+            if (err?.name === "AbortError" || err?.name === "CanceledError") {
+                return;
             }
-            else if (err.request) {
 
-                console.log(
-                    "Request was sent, but no response was received."
-                );
+            console.error("Analysis error:", err);
 
-                console.log("Request:", err.request);
-
-                alert(
-                    "The backend did not return a response.\n\n" +
-                    "The analysis may still be processing, the Render server may be waking up, or the request may have taken too long.\n\n" +
-                    "Please check the Render logs and try again."
-                );
-
-            }
-            else {
-
-                console.log(
-                    "Request setup error:",
-                    err.message
-                );
-
-                alert(
-                    "Request Error\n\n" +
-                    err.message
-                );
-
-            }
+            setError(err?.message || "The analysis failed.");
 
         }
         finally {
 
             setLoading(false);
+            setProgress(null);
 
         }
 
@@ -234,9 +195,10 @@ export default function Home() {
                                 <input
                                     type="text"
                                     value={uniprot}
-                                    onChange={(e) =>
-                                        setUniprot(e.target.value)
-                                    }
+                                    onChange={(e) => {
+                                        setUniprot(e.target.value);
+                                        setError("");
+                                    }}
                                     onKeyDown={handleKeyDown}
                                     placeholder="Example: P00533"
                                     disabled={loading}
@@ -247,6 +209,18 @@ export default function Home() {
                             <p className="example-text">
                                 Try: <strong>P00533</strong> (EGFR)
                             </p>
+
+                            {error && (
+
+                                <div
+                                    className="analysis-error"
+                                    role="alert"
+                                >
+                                    <span className="analysis-error-icon">!</span>
+                                    <span>{error}</span>
+                                </div>
+
+                            )}
 
                             <button
                                 className="analyze-button"
@@ -267,6 +241,77 @@ export default function Home() {
                                 )}
 
                             </button>
+
+                            {loading && progress && (
+
+                                <div
+                                    className="analysis-progress"
+                                    aria-live="polite"
+                                >
+
+                                    <div className="progress-header">
+
+                                        <span className="progress-stage">
+                                            {progress.stage}
+                                        </span>
+
+                                        {typeof progress.progress === "number" && (
+                                            <span className="progress-percent">
+                                                {Math.round(progress.progress)}%
+                                            </span>
+                                        )}
+
+                                    </div>
+
+                                    <div
+                                        className={
+                                            "progress-track" +
+                                            (typeof progress.progress === "number"
+                                                ? ""
+                                                : " indeterminate")
+                                        }
+                                        role="progressbar"
+                                        aria-valuemin={0}
+                                        aria-valuemax={100}
+                                        aria-valuenow={
+                                            typeof progress.progress === "number"
+                                                ? Math.round(progress.progress)
+                                                : undefined
+                                        }
+                                    >
+                                        <div
+                                            className="progress-fill"
+                                            style={{
+                                                width:
+                                                    typeof progress.progress === "number"
+                                                        ? `${Math.max(progress.progress, 2)}%`
+                                                        : undefined
+                                            }}
+                                        />
+                                    </div>
+
+                                    <div className="progress-meta">
+
+                                        {progress.status === "queued" ? (
+                                            <span>
+                                                Waiting for another analysis to finish
+                                                {progress.queue_position
+                                                    ? ` (position ${progress.queue_position})`
+                                                    : ""}
+                                            </span>
+                                        ) : (
+                                            <span>
+                                                {typeof progress.elapsed_seconds === "number"
+                                                    ? `Elapsed ${Math.floor(progress.elapsed_seconds)}s`
+                                                    : "Working..."}
+                                            </span>
+                                        )}
+
+                                    </div>
+
+                                </div>
+
+                            )}
 
                             <div className="card-footer">
                                 <span className="footer-status-dot"></span>

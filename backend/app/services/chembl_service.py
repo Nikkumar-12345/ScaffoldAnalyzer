@@ -5,6 +5,8 @@ import pandas as pd
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+from app.services.errors import AnalysisError, not_found_error
+
 
 class ChEMBLService:
 
@@ -63,24 +65,48 @@ class ChEMBLService:
             adapter
         )
 
+        # Target lookup only needs to answer "does this ID exist?",
+        # so it uses a short retry policy. Otherwise an unreachable
+        # ChEMBL would keep the user waiting ~6 minutes for an error.
+        self.lookup_session = requests.Session()
+
+        lookup_adapter = HTTPAdapter(
+            max_retries=Retry(
+                total=2,
+                connect=2,
+                read=2,
+                status=2,
+                backoff_factor=1,
+                status_forcelist=[429, 500, 502, 503, 504],
+                allowed_methods=["GET"],
+                raise_on_status=False
+            )
+        )
+
+        self.lookup_session.mount("https://", lookup_adapter)
+        self.lookup_session.mount("http://", lookup_adapter)
+
     # --------------------------------------------------
     # SAFE GET REQUEST
     # --------------------------------------------------
 
-    def safe_get(self, url, timeout=120):
+    def safe_get(self, url, timeout=120, session=None):
 
         try:
 
-            response = self.session.get(
+            response = (session or self.session).get(
                 url,
                 timeout=timeout
             )
 
             if response.status_code >= 500:
 
-                raise Exception(
-                    f"ChEMBL server error: "
-                    f"{response.status_code}"
+                raise AnalysisError(
+                    "chembl_unavailable",
+                    "ChEMBL is not responding right now "
+                    f"(server error {response.status_code}). "
+                    "Please try again in a few minutes.",
+                    503
                 )
 
             response.raise_for_status()
@@ -89,10 +115,12 @@ class ChEMBLService:
 
         except requests.exceptions.RequestException as e:
 
-            raise Exception(
+            raise AnalysisError(
+                "chembl_unavailable",
                 "Could not retrieve data from ChEMBL. "
                 "The ChEMBL API may be temporarily unavailable. "
-                f"Details: {str(e)}"
+                f"Details: {str(e)}",
+                503
             )
 
     # --------------------------------------------------
@@ -110,7 +138,8 @@ class ChEMBLService:
 
         response = self.safe_get(
             url,
-            timeout=60
+            timeout=30,
+            session=self.lookup_session
         )
 
         data = response.json()
@@ -122,8 +151,8 @@ class ChEMBLService:
 
         if not targets:
 
-            raise Exception(
-                "No target found for this UniProt ID."
+            raise not_found_error(
+                uniprot_id.strip()
             )
 
         for target in targets:
@@ -135,8 +164,12 @@ class ChEMBLService:
 
                 return target
 
-        raise Exception(
-            "No Human Single Protein target found."
+        raise AnalysisError(
+            "no_human_single_protein",
+            f"UniProt ID '{uniprot_id.strip()}' exists in ChEMBL, but it "
+            "is not a human single-protein target, which this analysis "
+            "requires.",
+            422
         )
 
     # --------------------------------------------------
@@ -154,7 +187,7 @@ class ChEMBLService:
     # DOWNLOAD ACTIVITIES
     # --------------------------------------------------
 
-    def download_activities(self, chembl_target):
+    def download_activities(self, chembl_target, progress=None):
 
         url = (
             self.BASE_URL
@@ -259,6 +292,19 @@ class ChEMBLService:
                 {}
             )
 
+            if progress is not None:
+
+                total_count = page_meta.get("total_count") or 0
+
+                progress(
+                    min(total_received / total_count, 1.0)
+                    if total_count else 0.0,
+                    f"Downloading activities from ChEMBL "
+                    f"({total_received:,}"
+                    + (f"/{total_count:,}" if total_count else "")
+                    + " records)"
+                )
+
             next_page = page_meta.get(
                 "next"
             )
@@ -301,9 +347,12 @@ class ChEMBLService:
 
         if not rows:
 
-            raise Exception(
-                "No valid IC50 activity records were "
-                "returned by ChEMBL."
+            raise AnalysisError(
+                "no_activity_data",
+                "ChEMBL has this target, but no usable IC50 activity "
+                "records (exact '=' measurements with structures) "
+                "were found for it.",
+                422
             )
 
         print(

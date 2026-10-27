@@ -1,6 +1,7 @@
 from rdkit import Chem
 from collections import defaultdict
 from itertools import combinations, count
+from functools import lru_cache
 import heapq
 
 
@@ -135,6 +136,18 @@ class SideChainService:
                 counts[atom.GetSymbol()] += 1
 
         return dict(counts)
+
+
+    # Same result as get_atom_counts(); side chains repeat a lot
+    # (e.g. "C", "F", "No Side Chain") so results are memoised.
+    # The returned dict is only read, never modified.
+    @staticmethod
+    @lru_cache(maxsize=50000)
+    def get_atom_counts_cached(fragment_smiles):
+
+        return SideChainService.get_atom_counts(
+            fragment_smiles
+        )
 
 
     # -----------------------------------------
@@ -359,8 +372,15 @@ class SideChainService:
     @staticmethod
     def analyze(
         scaffold_smiles,
-        molecules
+        molecules,
+        side_chains=None
     ):
+
+        # side_chains (optional): {molecule smiles: side chain or None}
+        # holding precomputed get_side_chain() results for this
+        # scaffold. Molecules missing from it are computed live.
+        if side_chains is None:
+            side_chains = {}
 
         if (
             not scaffold_smiles
@@ -431,18 +451,24 @@ class SideChainService:
             ):
                 continue
 
-            side_chain = (
-                SideChainService.get_side_chain(
-                    smiles,
-                    scaffold_smiles
+            if smiles in side_chains:
+
+                side_chain = side_chains[smiles]
+
+            else:
+
+                side_chain = (
+                    SideChainService.get_side_chain(
+                        smiles,
+                        scaffold_smiles
+                    )
                 )
-            )
 
             if side_chain is None:
                 continue
 
             atom_counts = (
-                SideChainService.get_atom_counts(
+                SideChainService.get_atom_counts_cached(
                     side_chain
                 )
             )

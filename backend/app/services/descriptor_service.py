@@ -9,12 +9,15 @@ from rdkit.Chem import GraphDescriptors
 class DescriptorService:
 
     @staticmethod
-    def calculate(smiles: str):
+    def calculate(smiles: str, mol=None):
 
         if smiles is None or smiles == "":
             return None
 
-        mol = Chem.MolFromSmiles(smiles)
+        # An already-parsed molecule of the same SMILES can be passed
+        # to avoid parsing it twice; the result is identical.
+        if mol is None:
+            mol = Chem.MolFromSmiles(smiles)
 
         if mol is None:
             return None

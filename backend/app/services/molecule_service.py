@@ -43,7 +43,8 @@ class MoleculeService:
         # -----------------------------
 
         descriptors = DescriptorService.calculate(
-            smiles
+            smiles,
+            mol=mol
         )
 
         # -----------------------------
@@ -70,7 +71,8 @@ class MoleculeService:
 
     "functional_groups":
         FunctionalGroupService.detect(
-            smiles
+            smiles,
+            mol=mol
         )
 
 }

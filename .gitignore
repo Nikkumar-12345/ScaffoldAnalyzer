@@ -21,3 +21,10 @@ backend/.wrangler/
 
 # Node
 node_modules/
+# Unpacked precomputed cache (the committed file is rdkit_cache.db.gz)
+backend/precomputed/*.db
+backend/precomputed/*.tmp
+backend/precomputed/*.building
+
+# Frontend build output
+frontend/dist/

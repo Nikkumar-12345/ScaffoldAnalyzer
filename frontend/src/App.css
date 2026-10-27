@@ -748,3 +748,135 @@
         height: 46px;
     }
 }
+
+/* ======================================================
+   ANALYSIS PROGRESS + ERRORS
+   ====================================================== */
+
+.analysis-progress {
+    margin-top: 20px;
+}
+
+.progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+
+    margin-bottom: 8px;
+
+    font-size: 13px;
+}
+
+.progress-stage {
+    color: #cbd5e1;
+
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.progress-percent {
+    color: #93c5fd;
+
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.progress-track {
+    position: relative;
+
+    height: 10px;
+
+    overflow: hidden;
+
+    border-radius: 999px;
+
+    background: rgba(148, 163, 184, 0.15);
+    border: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.progress-fill {
+    height: 100%;
+
+    border-radius: 999px;
+
+    background:
+        linear-gradient(
+            90deg,
+            #2563eb 0%,
+            #3b82f6 50%,
+            #7c3aed 100%
+        );
+
+    box-shadow: 0 0 12px rgba(59, 130, 246, 0.5);
+
+    transition: width 0.6s ease;
+}
+
+.progress-track.indeterminate .progress-fill {
+    width: 35%;
+
+    animation: progress-slide 1.4s ease-in-out infinite;
+}
+
+@keyframes progress-slide {
+    0% {
+        transform: translateX(-100%);
+    }
+
+    100% {
+        transform: translateX(300%);
+    }
+}
+
+.progress-meta {
+    margin-top: 8px;
+
+    color: #64748b;
+
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+.analysis-error {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+
+    margin: -10px 0 20px;
+    padding: 12px 14px;
+
+    border-radius: 12px;
+
+    color: #fecaca;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.analysis-error-icon {
+    flex: 0 0 auto;
+
+    width: 20px;
+    height: 20px;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 50%;
+
+    color: #0f172a;
+    background: #f87171;
+
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.loading-molecules {
+    max-width: 520px;
+    margin-bottom: 24px;
+}

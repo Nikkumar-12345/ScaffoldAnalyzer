@@ -2,6 +2,12 @@ from app.services.chembl_service import ChEMBLService
 from app.services.database_service import DatabaseService
 from app.services.dataframe_service import DataFrameService
 from app.services.scaffold_service import ScaffoldService
+from app.services.errors import (
+    AnalysisError,
+    invalid_format_error,
+    is_valid_uniprot_format,
+    normalize_uniprot_id,
+)
 
 
 class AnalysisService:
@@ -18,13 +24,30 @@ class AnalysisService:
 
         self.scaffold = ScaffoldService()
 
-    def analyze(self, uniprot_id):
+    def analyze(self, uniprot_id, progress=None):
 
-        uniprot_id = uniprot_id.strip()
+        # progress (optional): callable(percent 0-100, message)
+        def report(percent, message):
+            if progress is not None:
+                progress(percent, message)
+
+        raw_id = (uniprot_id or "").strip()
+
+        uniprot_id = normalize_uniprot_id(raw_id)
+
+        if not uniprot_id:
+
+            raise AnalysisError(
+                "missing_uniprot_id",
+                "Please enter a UniProt ID (for example P00533).",
+                400
+            )
 
         # ------------------------------------
         # FIRST: SEARCH LOCAL DATABASE
         # ------------------------------------
+
+        report(1, "Looking up target in local ChEMBL database")
 
         print(
             f"Searching local database for "
@@ -34,6 +57,13 @@ class AnalysisService:
         target = self.database.get_target(
             uniprot_id
         )
+
+        if target is None and raw_id != uniprot_id:
+
+            # Exact text as typed (original behaviour)
+            target = self.database.get_target(
+                raw_id
+            )
 
         # ------------------------------------
         # TARGET FOUND LOCALLY
@@ -58,6 +88,8 @@ class AnalysisService:
 
             if has_activities:
 
+                report(4, "Loading activity records")
+
                 print(
                     "Loading activities from "
                     "local database..."
@@ -80,10 +112,12 @@ class AnalysisService:
 
             else:
 
-                raise Exception(
-                    "Target was found in the local "
-                    "ChEMBL database, but no usable "
-                    "IC50 activity records are available."
+                raise AnalysisError(
+                    "no_activity_data",
+                    f"UniProt ID '{uniprot_id}' was found "
+                    f"({target['target_chembl_id']}), but no usable "
+                    "IC50 activity records are available for it.",
+                    422
                 )
 
         # ------------------------------------
@@ -92,6 +126,13 @@ class AnalysisService:
         # ------------------------------------
 
         else:
+
+            # Don't query ChEMBL for text that can't be a UniProt ID
+            if not is_valid_uniprot_format(uniprot_id):
+
+                raise invalid_format_error(raw_id)
+
+            report(2, "Not in local database - searching ChEMBL online")
 
             print(
                 "Target not found locally. "
@@ -109,7 +150,11 @@ class AnalysisService:
 
             activities = (
                 self.chembl.download_activities(
-                    target["target_chembl_id"]
+                    target["target_chembl_id"],
+                    progress=lambda fraction, message: report(
+                        4 + 21 * fraction,
+                        message
+                    )
                 )
             )
 
@@ -141,6 +186,8 @@ class AnalysisService:
         # CLEAN ACTIVITY DATA
         # ------------------------------------
 
+        report(26, "Cleaning activity data")
+
         cleaned = self.df_service.clean_activity_dataframe(
             activities
         )
@@ -151,9 +198,12 @@ class AnalysisService:
 
         if cleaned is None or cleaned.empty:
 
-            raise Exception(
-                "No valid activity records remain "
-                "after data cleaning."
+            raise AnalysisError(
+                "no_activity_data",
+                f"UniProt ID '{uniprot_id}' was found, but no valid "
+                "activity records remain after data cleaning (only "
+                "exact '=' IC50 measurements with structures are used).",
+                422
             )
 
         # ------------------------------------
@@ -161,8 +211,14 @@ class AnalysisService:
         # ------------------------------------
 
         scaffold_data = self.scaffold.generate_scaffolds(
-            cleaned
+            cleaned,
+            progress=lambda fraction, message: report(
+                28 + 69 * fraction,
+                message
+            )
         )
+
+        report(97, "Preparing charts")
 
         # ------------------------------------
         # CHARTS

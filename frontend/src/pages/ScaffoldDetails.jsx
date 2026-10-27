@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation, Navigate } from "react-router-dom";
 
-import api from "../services/api";
+import api, { getErrorMessage } from "../services/api";
 import MoleculeCard from "../components/MoleculeCard";
 
 export default function ScaffoldDetails() {
@@ -14,37 +14,103 @@ export default function ScaffoldDetails() {
 
     const [loading, setLoading] = useState(true);
 
+    const [loadedCount, setLoadedCount] = useState(0);
+
+    const [loadError, setLoadError] = useState("");
+
 
     // ==============================================
     // FETCH MOLECULE DETAILS
+    //
+    // Loaded in small batches so molecules appear
+    // progressively with a progress bar, instead of
+    // one long wait for the whole scaffold.
     // ==============================================
 
     useEffect(() => {
 
         if (!scaffold) return;
 
-        api.post(
-            "/scaffold/details",
-            {
-                molecules: scaffold.molecules
+        const allMolecules = scaffold.molecules || [];
+
+        const BATCH_SIZE = 24;
+
+        const controller = new AbortController();
+
+        async function loadMolecules() {
+
+            setMolecules([]);
+            setLoadedCount(0);
+            setLoadError("");
+            setLoading(true);
+
+            for (
+                let start = 0;
+                start < allMolecules.length;
+                start += BATCH_SIZE
+            ) {
+
+                const batch = allMolecules.slice(
+                    start,
+                    start + BATCH_SIZE
+                );
+
+                try {
+
+                    const res = await api.post(
+                        "/scaffold/details",
+                        {
+                            molecules: batch
+                        },
+                        {
+                            signal: controller.signal
+                        }
+                    );
+
+                    setMolecules(
+                        (previous) => [
+                            ...previous,
+                            ...(res.data.molecules || [])
+                        ]
+                    );
+
+                } catch (err) {
+
+                    if (controller.signal.aborted) {
+                        return;
+                    }
+
+                    console.log(err);
+
+                    setLoadError(
+                        getErrorMessage(
+                            err,
+                            "Could not load molecule details."
+                        )
+                    );
+
+                    break;
+
+                }
+
+                setLoadedCount(
+                    Math.min(
+                        start + BATCH_SIZE,
+                        allMolecules.length
+                    )
+                );
+
             }
-        )
-        .then((res) => {
 
-            setMolecules(
-                res.data.molecules || []
-            );
+            if (!controller.signal.aborted) {
+                setLoading(false);
+            }
 
-            setLoading(false);
+        }
 
-        })
-        .catch((err) => {
+        loadMolecules();
 
-            console.log(err);
-
-            setLoading(false);
-
-        });
+        return () => controller.abort();
 
     }, [scaffold]);
 
@@ -1324,9 +1390,50 @@ export default function ScaffoldDetails() {
 
                 loading &&
 
-                <h2>
-                    Loading Molecules...
-                </h2>
+                <div className="analysis-progress loading-molecules">
+
+                    <div className="progress-header">
+
+                        <span className="progress-stage">
+                            Loading Molecules... ({loadedCount} of{" "}
+                            {(scaffold.molecules || []).length})
+                        </span>
+
+                        <span className="progress-percent">
+                            {Math.round(
+                                (100 * loadedCount) /
+                                Math.max((scaffold.molecules || []).length, 1)
+                            )}%
+                        </span>
+
+                    </div>
+
+                    <div className="progress-track">
+                        <div
+                            className="progress-fill"
+                            style={{
+                                width: `${Math.max(
+                                    (100 * loadedCount) /
+                                    Math.max((scaffold.molecules || []).length, 1),
+                                    2
+                                )}%`
+                            }}
+                        />
+                    </div>
+
+                </div>
+
+            }
+
+
+            {
+
+                loadError &&
+
+                <div className="analysis-error" role="alert">
+                    <span className="analysis-error-icon">!</span>
+                    <span>{loadError}</span>
+                </div>
 
             }
 
@@ -1334,6 +1441,8 @@ export default function ScaffoldDetails() {
             {
 
                 !loading
+                &&
+                !loadError
                 &&
                 molecules.length === 0
                 &&

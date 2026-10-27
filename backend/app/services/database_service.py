@@ -4,6 +4,8 @@ import sqlite3
 import pandas as pd
 import requests
 
+from app.services.errors import AnalysisError
+
 
 class DatabaseService:
 
@@ -29,7 +31,7 @@ class DatabaseService:
 
     DATABASE_URL = (
         "https://github.com/Nikkumar-12345/ScaffoldAnalyzer/"
-        "releases/download/v1.0-db/"
+        "releases/download/v1.1-indexed-db/"
         "scaffold_analyzer_chembl.db"
     )
 
@@ -153,9 +155,11 @@ class DatabaseService:
 
                 temp_path.unlink()
 
-            raise Exception(
+            raise AnalysisError(
+                "database_unavailable",
                 "Failed to download ChEMBL database. "
-                f"Details: {error}"
+                f"Details: {error}",
+                503
             )
 
     # --------------------------------------------------

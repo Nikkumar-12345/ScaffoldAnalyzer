@@ -47,10 +47,28 @@ class FunctionalGroupService:
 
     }
 
-    @staticmethod
-    def detect(smiles):
+    # SMARTS patterns compiled once instead of on every call
+    _COMPILED = None
 
-        mol = Chem.MolFromSmiles(smiles)
+    @classmethod
+    def _compiled_patterns(cls):
+
+        if cls._COMPILED is None:
+
+            cls._COMPILED = [
+                (name, Chem.MolFromSmarts(smarts))
+                for name, smarts in cls.PATTERNS.items()
+            ]
+
+        return cls._COMPILED
+
+    @staticmethod
+    def detect(smiles, mol=None):
+
+        # An already-parsed molecule of the same SMILES can be passed
+        # to avoid parsing it twice; the result is identical.
+        if mol is None:
+            mol = Chem.MolFromSmiles(smiles)
 
         if mol is None:
 
@@ -58,9 +76,7 @@ class FunctionalGroupService:
 
         groups = []
 
-        for name, smarts in FunctionalGroupService.PATTERNS.items():
-
-            pattern = Chem.MolFromSmarts(smarts)
+        for name, pattern in FunctionalGroupService._compiled_patterns():
 
             if pattern is None:
 

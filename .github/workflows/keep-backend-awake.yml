@@ -1,0 +1,23 @@
+# Backup keep-alive for the Render backend (the backend also pings itself).
+# Render's free tier sleeps after 15 minutes without traffic; this pings
+# /health every 10 minutes. GitHub may delay scheduled runs a little and
+# pauses them after 60 days without repository activity; re-enable from
+# the Actions tab if that happens.
+name: Keep backend awake
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping backend health endpoint
+        env:
+          BACKEND_URL: ${{ vars.BACKEND_URL || 'https://scaffold-analyzer-backend-v11.onrender.com' }}
+        run: |
+          curl --silent --show-error --max-time 120 --retry 2 \
+            "$BACKEND_URL/health" || echo "Ping failed (backend may be redeploying)"

@@ -12,18 +12,118 @@ from rdkit.Chem.Draw import rdMolDraw2D
 from app.services.descriptor_service import DescriptorService
 from app.services.druglikeness_service import DrugLikenessService
 from app.services.ranking_service import RankingService
+from app.services.precomputed_service import PrecomputedService
 
 
 class ScaffoldService:
 
+    # Scaffold images are only drawn for the top-ranked scaffolds,
+    # which are the ones the dashboard displays. Any other scaffold's
+    # image can be requested on demand via POST /scaffold/svg.
+    SVG_TOP_N = 10
+
+    # ---------------------------------------
+    # Murcko scaffold of one molecule
+    # (identical to the original inline logic)
+    #
+    # Returns (status, scaffold_smiles, scaffold_mol)
+    # ---------------------------------------
+
     @staticmethod
-    def generate_scaffolds(df: pd.DataFrame):
+    def compute_scaffold(smiles):
+
+        mol = Chem.MolFromSmiles(smiles)
+
+        if mol is None:
+            return PrecomputedService.STATUS_INVALID, None, None
+
+        try:
+
+            scaffold = MurckoScaffold.GetScaffoldForMol(
+                mol
+            )
+
+        except Exception:
+
+            return PrecomputedService.STATUS_INVALID, None, None
+
+        if (
+            scaffold is None
+            or scaffold.GetNumAtoms() == 0
+        ):
+
+            return PrecomputedService.STATUS_NO_SCAFFOLD, None, None
+
+        scaffold_smiles = Chem.MolToSmiles(
+            scaffold,
+            canonical=True
+        )
+
+        if not scaffold_smiles:
+
+            return PrecomputedService.STATUS_NO_SCAFFOLD, None, None
+
+        return PrecomputedService.STATUS_OK, scaffold_smiles, scaffold
+
+    # ---------------------------------------
+    # Scaffold image
+    # ---------------------------------------
+
+    @staticmethod
+    def draw_scaffold_svg(scaffold_mol):
+
+        drawer = rdMolDraw2D.MolDraw2DSVG(
+            300,
+            220
+        )
+
+        drawer.DrawMolecule(scaffold_mol)
+
+        drawer.FinishDrawing()
+
+        return drawer.GetDrawingText()
+
+    @staticmethod
+    def svg_for_molecule_scaffold(smiles):
+        """
+        Draws the scaffold exactly as the original pipeline did: from the
+        scaffold object derived from the first molecule that produced it.
+        """
+
+        status, _, scaffold_mol = ScaffoldService.compute_scaffold(smiles)
+
+        if status != PrecomputedService.STATUS_OK:
+            return None
+
+        return ScaffoldService.draw_scaffold_svg(scaffold_mol)
+
+    @staticmethod
+    def svg_for_scaffold_smiles(scaffold_smiles):
+
+        scaffold_mol = Chem.MolFromSmiles(scaffold_smiles)
+
+        if scaffold_mol is None:
+            return None
+
+        return ScaffoldService.draw_scaffold_svg(scaffold_mol)
+
+    # ---------------------------------------
+    # Main analysis
+    #
+    # progress (optional): callable(fraction 0..1, message)
+    # ---------------------------------------
+
+    @staticmethod
+    def generate_scaffolds(df: pd.DataFrame, progress=None):
+
+        def report(fraction, message):
+            if progress is not None:
+                progress(min(max(fraction, 0.0), 1.0), message)
 
         # ---------------------------------------
         # Remove duplicate molecules
         # ---------------------------------------
 
-        # Removed unnecessary .copy() to reduce memory usage
         unique_df = df.drop_duplicates(
             subset=["molecule_chembl_id"]
         )
@@ -34,55 +134,79 @@ class ScaffoldService:
 
         total_unique_molecules = len(unique_df)
 
+        # Plain Python lists are much faster to iterate than iterrows()
+        smiles_column = unique_df["canonical_smiles"].tolist()
+
+        id_column = unique_df["molecule_chembl_id"].tolist()
+
+        if "pchembl_value" in unique_df.columns:
+            pchembl_column = unique_df["pchembl_value"].tolist()
+        else:
+            pchembl_column = [None] * total_unique_molecules
+
+        # ---------------------------------------
+        # Precomputed scaffolds / side chains
+        # ---------------------------------------
+
+        report(0.02, "Looking up precomputed scaffolds")
+
+        cached = PrecomputedService.lookup_molecules(
+            [s for s in set(smiles_column) if isinstance(s, str) and s]
+        )
+
+        # smiles -> side chain (None = no match) for SideChainService
+        side_chains = {}
+
+        # scaffold_smiles -> SMILES of the first molecule with it
+        first_molecule_smiles = {}
+
+        live_computed = 0
+
         # ---------------------------------------
         # Iterate over every molecule
         # ---------------------------------------
 
-        for _, row in unique_df.iterrows():
+        for index, (smiles, molecule_id, pchembl) in enumerate(
+            zip(smiles_column, id_column, pchembl_column)
+        ):
 
-            smiles = row["canonical_smiles"]
-
-            molecule_id = row["molecule_chembl_id"]
-
-            pchembl = row.get("pchembl_value", None)
+            if index % 500 == 0:
+                report(
+                    0.05 + 0.25 * index / max(total_unique_molecules, 1),
+                    f"Generating Murcko scaffolds "
+                    f"({index:,}/{total_unique_molecules:,} molecules)"
+                )
 
             if not smiles:
                 invalid_smiles += 1
                 continue
 
-            mol = Chem.MolFromSmiles(smiles)
+            hit = cached.get(smiles)
 
-            if mol is None:
+            if hit is not None:
 
-                invalid_smiles += 1
+                status, scaffold_smiles, has_side_chain, side_chain = hit
 
-                continue
+                if has_side_chain or status == PrecomputedService.STATUS_OK:
+                    side_chains[smiles] = (
+                        side_chain if has_side_chain else None
+                    )
 
-            try:
+            else:
 
-                scaffold = MurckoScaffold.GetScaffoldForMol(
-                    mol
+                live_computed += 1
+
+                status, scaffold_smiles, _ = (
+                    ScaffoldService.compute_scaffold(smiles)
                 )
 
-            except Exception:
+            if status == PrecomputedService.STATUS_INVALID:
 
                 invalid_smiles += 1
 
                 continue
 
-            if (
-                scaffold is None
-                or scaffold.GetNumAtoms() == 0
-            ):
-
-                continue
-
-            scaffold_smiles = Chem.MolToSmiles(
-                scaffold,
-                canonical=True
-            )
-
-            if not scaffold_smiles:
+            if status != PrecomputedService.STATUS_OK:
 
                 continue
 
@@ -92,43 +216,23 @@ class ScaffoldService:
 
             if scaffold_smiles not in scaffold_dict:
 
-                drawer = rdMolDraw2D.MolDraw2DSVG(
-                    300,
-                    220
-                )
-
-                drawer.DrawMolecule(scaffold)
-
-                drawer.FinishDrawing()
-
-                svg = drawer.GetDrawingText()
-
-                descriptors = DescriptorService.calculate(
-                    scaffold_smiles
-                )
-
-                druglikeness = DrugLikenessService.evaluate(
-                    descriptors
-                )
+                first_molecule_smiles[scaffold_smiles] = smiles
 
                 scaffold_dict[scaffold_smiles] = {
 
                     "scaffold_smiles": scaffold_smiles,
 
-                    "svg": svg,
+                    "svg": None,
 
                     "molecules": [],
 
                     "pic50_values": [],
 
-                    "descriptors": descriptors,
+                    "descriptors": None,
 
-                    "druglikeness": druglikeness,
+                    "druglikeness": None,
 
-                    "functional_groups":
-                        FunctionalGroupService.detect(
-                            scaffold_smiles
-                        )
+                    "functional_groups": []
                 }
 
             # ---------------------------------------
@@ -180,10 +284,60 @@ class ScaffoldService:
                     molecule_pic50
                 )
 
+        if live_computed:
+            print(f"Computed {live_computed} scaffold(s) live "
+                  "(not in precomputed cache).")
+
+        # ---------------------------------------
+        # Scaffold descriptors / drug-likeness /
+        # functional groups
+        # ---------------------------------------
+
+        report(0.30, "Calculating scaffold descriptors")
+
+        scaffold_props = PrecomputedService.lookup_scaffolds(
+            list(scaffold_dict.keys())
+        )
+
+        total_scaffolds = len(scaffold_dict)
+
+        for position, (scaffold_smiles, scaffold) in enumerate(
+            scaffold_dict.items()
+        ):
+
+            props = scaffold_props.get(scaffold_smiles)
+
+            if props is not None:
+
+                descriptors, groups = props
+
+            else:
+
+                if position % 50 == 0:
+                    report(
+                        0.30 + 0.10 * position / max(total_scaffolds, 1),
+                        f"Calculating scaffold descriptors "
+                        f"({position:,}/{total_scaffolds:,})"
+                    )
+
+                descriptors = DescriptorService.calculate(
+                    scaffold_smiles
+                )
+
+                groups = FunctionalGroupService.detect(
+                    scaffold_smiles
+                )
+
+            scaffold["descriptors"] = descriptors
+
+            scaffold["druglikeness"] = DrugLikenessService.evaluate(
+                descriptors
+            )
+
+            scaffold["functional_groups"] = groups
+
         # ---------------------------------------
         # Release DataFrame memory
-        # Grouped data is now safely stored in
-        # scaffold_dict.
         # ---------------------------------------
 
         unique_df = None
@@ -235,6 +389,14 @@ class ScaffoldService:
 
         scaffold_id = 1
 
+        # Progress for the one-atom analysis is weighted by molecule
+        # count, since that is where the time goes.
+        molecules_total = sum(
+            len(s["molecules"]) for s in scaffold_dict.values()
+        )
+
+        molecules_done = 0
+
         # ---------------------------------------
         # Generate statistics
         # ---------------------------------------
@@ -246,6 +408,15 @@ class ScaffoldService:
             occurrences = len(
                 scaffold["molecules"]
             )
+
+            if scaffold_id % 100 == 1 or occurrences >= 50:
+                report(
+                    0.40 + 0.52 * molecules_done / max(molecules_total, 1),
+                    f"One-atom difference analysis "
+                    f"(scaffold {scaffold_id:,}/{total_scaffolds:,})"
+                )
+
+            molecules_done += occurrences
 
             percentage = round(
 
@@ -329,9 +500,6 @@ class ScaffoldService:
             # molecules here belong ONLY to this
             # particular Murcko scaffold.
             #
-            # Therefore SideChainService never receives
-            # molecules from different scaffolds together.
-            #
             # Skip analysis when fewer than two
             # molecules are available because no pair
             # can possibly be formed.
@@ -345,7 +513,10 @@ class ScaffoldService:
                             scaffold["scaffold_smiles"],
 
                         molecules=
-                            scaffold["molecules"]
+                            scaffold["molecules"],
+
+                        side_chains=
+                            side_chains
                     )
                 )
 
@@ -452,13 +623,9 @@ class ScaffoldService:
 
             scaffold_id += 1
 
-        # ---------------------------------------
-        # Release grouping dictionary reference
-        # All required results are now stored in
-        # scaffold_list.
-        # ---------------------------------------
-
         scaffold_dict = None
+
+        report(0.93, "Ranking scaffolds")
 
         # ---------------------------------------
         # Sort Scaffolds
@@ -506,6 +673,18 @@ class ScaffoldService:
             if scaffold["ranking"] is not None:
 
                 scaffold["ranking"]["rank"] = rank
+
+        # ---------------------------------------
+        # Scaffold images for the top scaffolds
+        # ---------------------------------------
+
+        report(0.95, "Drawing top scaffold structures")
+
+        for scaffold in scaffold_list[:ScaffoldService.SVG_TOP_N]:
+
+            scaffold["svg"] = ScaffoldService.svg_for_molecule_scaffold(
+                first_molecule_smiles[scaffold["scaffold_smiles"]]
+            )
 
         # ---------------------------------------
         # Top Scaffold Summary

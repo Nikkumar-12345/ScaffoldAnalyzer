@@ -1,5 +1,5 @@
 import { useState } from "react";
-import api from "../services/api";
+import api, { getErrorMessage } from "../services/api";
 
 export default function ScaffoldCard({
     scaffold,
@@ -64,7 +64,10 @@ export default function ScaffoldCard({
             );
 
             setTargetError(
-                "Could not load other targets."
+                getErrorMessage(
+                    error,
+                    "Could not load other targets."
+                )
             );
 
         } finally {

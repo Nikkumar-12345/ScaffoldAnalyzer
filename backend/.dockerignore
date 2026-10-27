@@ -26,3 +26,6 @@ database/*.download
 # Editor files
 .vscode/
 .idea/
+# Local unpacked cache (the image unpacks its own copy)
+precomputed/*.db
+precomputed/*.tmp
