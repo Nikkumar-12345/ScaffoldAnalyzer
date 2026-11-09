@@ -1,10 +1,13 @@
 import { useState } from "react";
 import api, { getErrorMessage } from "../services/api";
+import { formatEvalue } from "../utils/format";
 
 export default function ScaffoldCard({
     scaffold,
     onInvestigate,
-    currentTarget
+    currentTarget,
+    queryUniprot,
+    homologFilter
 }) {
 
     const descriptors = scaffold.descriptors || {};
@@ -17,6 +20,9 @@ export default function ScaffoldCard({
     const [showAllTargets, setShowAllTargets] = useState(false);
     const [targetSearch, setTargetSearch] = useState("");
     const [targetError, setTargetError] = useState("");
+    const [homologCount, setHomologCount] = useState(0);
+    const [benchmarkCount, setBenchmarkCount] = useState(0);
+    const [benchmark, setBenchmark] = useState(null);
 
     async function findOtherTargets() {
 
@@ -43,16 +49,31 @@ export default function ScaffoldCard({
                     current_target_chembl_id:
                         typeof currentTarget === "object"
                             ? currentTarget?.target_chembl_id
-                            : currentTarget
+                            : currentTarget,
+
+                    // Lets the server mark which of these targets
+                    // are sequence homologs of the analysed protein.
+                    query_uniprot_id: queryUniprot
 
                 }
             );
 
             const data = response.data;
 
-            setOtherTargets(
-                data.targets || []
+            // Homologous targets first, most similar at the top,
+            // then everything else by molecule count as before.
+            const sorted = [...(data.targets || [])].sort(
+                (a, b) =>
+                    (b.identity ?? -1) - (a.identity ?? -1)
             );
+
+            setOtherTargets(sorted);
+
+            setHomologCount(data.homologous_count ?? 0);
+
+            setBenchmarkCount(data.benchmark_count ?? 0);
+
+            setBenchmark(data.benchmark || null);
 
             setShowTargets(true);
 
@@ -76,6 +97,37 @@ export default function ScaffoldCard({
 
         }
     }
+
+    // --------------------------------------------------
+    // SIMILARITY CUTOFF
+    //
+    // Uses the cutoff chosen on the Homologous Proteins
+    // slider when there is one, otherwise the server's
+    // configured benchmark.
+    // --------------------------------------------------
+
+    const activeBenchmark = homologFilter || benchmark;
+
+    function passesBenchmark(target) {
+
+        if (!target.is_homolog) {
+            return false;
+        }
+
+        if (!homologFilter) {
+            return Boolean(target.meets_benchmark);
+        }
+
+        const value = target[homologFilter.basis];
+
+        return value != null && value >= homologFilter.threshold;
+    }
+
+    const activeBenchmarkCount =
+        homologFilter
+            ? otherTargets.filter(passesBenchmark).length
+            : benchmarkCount;
+
 
     // --------------------------------------------------
     // SEARCH TARGETS
@@ -434,6 +486,48 @@ export default function ScaffoldCard({
 
 
                     {/* ================================= */}
+                    {/* SELECTIVITY READ-OUT              */}
+                    {/* ================================= */}
+
+                    {queryUniprot && otherTargets.length > 0 && (
+
+                        <p className="selectivity-note">
+                            {homologCount > 0 ? (
+                                <>
+                                    <b>{homologCount}</b> of them{" "}
+                                    {homologCount === 1
+                                        ? "is a sequence homolog"
+                                        : "are sequence homologs"}{" "}
+                                    of your target, so activity here may
+                                    be family-wide rather than selective.
+                                    {activeBenchmark && (
+                                        <>
+                                            {" "}
+                                            <b>
+                                                {activeBenchmarkCount}
+                                            </b>{" "}
+                                            {activeBenchmarkCount === 1
+                                                ? "reaches"
+                                                : "reach"}{" "}
+                                            {activeBenchmark.threshold}%{" "}
+                                            {activeBenchmark.basis}{" "}
+                                            or above (marked ✓).
+                                        </>
+                                    )}
+                                </>
+                            ) : (
+                                <>
+                                    None of them is a sequence homolog of
+                                    your target, so this overlap is not
+                                    driven by protein family similarity.
+                                </>
+                            )}
+                        </p>
+
+                    )}
+
+
+                    {/* ================================= */}
                     {/* SEARCH */}
                     {/* ================================= */}
 
@@ -496,6 +590,38 @@ export default function ScaffoldCard({
                                         {target.target_name
                                             || "Unknown Target"}
                                     </b>
+
+                                    {target.is_homolog && (
+
+                                        <span
+                                            className={
+                                                "homolog-badge"
+                                                + (passesBenchmark(target)
+                                                    ? " benchmark-badge"
+                                                    : "")
+                                            }
+                                            title={
+                                                "Sequence identity "
+                                                + target.identity
+                                                + "%, similarity "
+                                                + target.similarity
+                                                + "% to the analysed"
+                                                + " protein (E-value "
+                                                + formatEvalue(
+                                                    target.evalue
+                                                )
+                                                + ")"
+                                            }
+                                        >
+                                            {passesBenchmark(target)
+                                                ? "✓ "
+                                                : ""}
+                                            homolog ·{" "}
+                                            {target.identity}% id /{" "}
+                                            {target.similarity}% sim
+                                        </span>
+
+                                    )}
                                 </p>
 
                                 <p

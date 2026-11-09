@@ -43,5 +43,15 @@ shutil.copyfileobj(src, dst, 4 * 1024 * 1024); dst.close(); src.close()" \
     && rm /app/precomputed/rdkit_cache.db.gz \
     && ls -lh /app/precomputed/rdkit_cache.db
 
+# Unpack the precomputed homologous-protein cache (sequence similarity
+# between every target in the database). Without it the app runs
+# exactly as before, just without the homologous-protein panel.
+RUN python -c "import gzip, shutil; \
+src = gzip.open('/app/precomputed/homologs.db.gz', 'rb'); \
+dst = open('/app/precomputed/homologs.db', 'wb'); \
+shutil.copyfileobj(src, dst, 4 * 1024 * 1024); dst.close(); src.close()" \
+    && rm /app/precomputed/homologs.db.gz \
+    && ls -lh /app/precomputed/homologs.db
+
 # Render provides PORT dynamically
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

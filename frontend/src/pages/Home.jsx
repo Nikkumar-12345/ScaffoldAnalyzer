@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import Navbar from "../components/Navbar";
 import api, { runAnalysis } from "../services/api";
@@ -8,7 +8,13 @@ import "../App.css";
 
 export default function Home() {
 
-    const [uniprot, setUniprot] = useState("");
+    const [searchParams] = useSearchParams();
+
+    // Allows linking straight to a target, e.g. /?uniprot=P04626
+    // (used by the "Homologous Proteins" panel).
+    const [uniprot, setUniprot] = useState(
+        () => searchParams.get("uniprot") || ""
+    );
     const [loading, setLoading] = useState(false);
     const [progress, setProgress] = useState(null);
     const [error, setError] = useState("");

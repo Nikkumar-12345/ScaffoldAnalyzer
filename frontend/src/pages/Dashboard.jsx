@@ -1,8 +1,10 @@
+import { useCallback, useState } from "react";
 import { useLocation, Navigate, useNavigate } from "react-router-dom";
 
 import SummaryCard from "../components/SummaryCard";
 import CompositionChart from "../components/CompositionChart";
 import ScaffoldCard from "../components/ScaffoldCard";
+import HomologPanel from "../components/HomologPanel";
 
 
 export default function Dashboard() {
@@ -12,6 +14,34 @@ export default function Dashboard() {
     const navigate = useNavigate();
 
     const result = location.state?.result;
+
+    // Similarity cutoff chosen on the Homologous Proteins slider,
+    // shared with the scaffold cards so both agree on what counts
+    // as a homolog. Declared before any early return so the hook
+    // order stays stable.
+
+    const [homologFilter, setHomologFilter] = useState(null);
+
+    const handleHomologFilter = useCallback(
+
+        filter => setHomologFilter(
+
+            previous => (
+
+                previous
+                && previous.basis === filter.basis
+                && previous.threshold === filter.threshold
+
+                    ? previous
+                    : filter
+
+            )
+
+        ),
+
+        []
+
+    );
 
 
     // --------------------------------------------------
@@ -185,6 +215,22 @@ export default function Dashboard() {
 
 
             {/* ========================================= */}
+            {/* HOMOLOGOUS PROTEINS */}
+            {/* ========================================= */}
+
+            <HomologPanel
+
+                homologs={result.homologs}
+
+                onFilterChange={handleHomologFilter}
+
+            />
+
+
+            <br />
+
+
+            {/* ========================================= */}
             {/* TOP SCAFFOLDS */}
             {/* ========================================= */}
 
@@ -242,6 +288,25 @@ export default function Dashboard() {
                                 currentTarget={
                                     summary.chembl_target
                                 }
+
+                                /*
+                                 * UniProt ID of the analysed
+                                 * protein, so cross-target hits
+                                 * can be marked as sequence
+                                 * homologs of it.
+                                 */
+
+                                queryUniprot={
+                                    summary.uniprot
+                                }
+
+                                /*
+                                 * Keeps the scaffold cards on the same
+                                 * similarity cutoff as the slider in
+                                 * the Homologous Proteins panel.
+                                 */
+
+                                homologFilter={homologFilter}
 
                             />
 

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
 from app.services.cross_target_service import CrossTargetService
+from app.services.homolog_service import HomologService
 from app.services.molecule_service import MoleculeService
 from app.services.scaffold_service import ScaffoldService
 
@@ -25,7 +26,7 @@ cross_target = CrossTargetService()
 @router.post("/cross-targets")
 def find_cross_targets(request: dict):
 
-    return cross_target.find_other_targets(
+    result = cross_target.find_other_targets(
 
         scaffold_smiles=
             request["scaffold_smiles"],
@@ -36,6 +37,85 @@ def find_cross_targets(request: dict):
             )
 
     )
+
+    # ----------------------------------------------
+    # OPTIONAL: ANNOTATE WITH SEQUENCE SIMILARITY
+    #
+    # When the caller passes the UniProt ID of the
+    # protein being analysed, each cross-target is
+    # marked with how similar its sequence is to that
+    # protein. Existing callers that do not pass it
+    # get exactly the same response as before.
+    # ----------------------------------------------
+
+    query_uniprot_id = request.get("query_uniprot_id")
+
+    if not query_uniprot_id:
+
+        return result
+
+    identities = HomologService.identity_map(
+
+        query_uniprot_id,
+
+        [
+            target.get("uniprot_id")
+            for target in result["targets"]
+        ]
+
+    )
+
+    homologous = 0
+
+    for target in result["targets"]:
+
+        match = identities.get(
+            target.get("uniprot_id")
+        )
+
+        if match is None:
+
+            target["identity"] = None
+
+            target["similarity"] = None
+
+            target["is_homolog"] = False
+
+            target["meets_benchmark"] = False
+
+        else:
+
+            target["identity"] = match["identity"]
+
+            target["similarity"] = match["similarity"]
+
+            target["bit_score"] = match["bit_score"]
+
+            target["evalue"] = match["evalue"]
+
+            target["is_homolog"] = True
+
+            target["meets_benchmark"] = match["meets_benchmark"]
+
+            homologous += 1
+
+    result["homology_available"] = (
+        HomologService.is_available()
+    )
+
+    result["homologous_count"] = homologous
+
+    result["benchmark_count"] = sum(
+        1
+        for target in result["targets"]
+        if target.get("meets_benchmark")
+    )
+
+    result["benchmark"] = (
+        HomologService.benchmark_info()
+    )
+
+    return result
 
 
 # --------------------------------------------------

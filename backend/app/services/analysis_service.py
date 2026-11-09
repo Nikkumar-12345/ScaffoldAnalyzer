@@ -2,6 +2,7 @@ from app.services.chembl_service import ChEMBLService
 from app.services.database_service import DatabaseService
 from app.services.dataframe_service import DataFrameService
 from app.services.scaffold_service import ScaffoldService
+from app.services.homolog_service import HomologService
 from app.services.errors import (
     AnalysisError,
     invalid_format_error,
@@ -294,6 +295,9 @@ class AnalysisService:
                 "organism":
                     protein["organism"],
 
+                "uniprot":
+                    uniprot_id,
+
                 "chembl_target":
                     target["target_chembl_id"],
 
@@ -360,6 +364,14 @@ class AnalysisService:
                 scaffold_data["scaffolds"][:10],
 
             "all_scaffolds":
-                scaffold_data["scaffolds"]
+                scaffold_data["scaffolds"],
+
+            # Proteins whose sequence is similar to this target.
+            # Always present; "available" is false when no homology
+            # data exists for this protein.
+            "homologs":
+                HomologService.summary_for_target(
+                    uniprot_id
+                )
 
         }

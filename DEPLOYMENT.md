@@ -1,5 +1,65 @@
 # Deployment & local setup
 
+## What changed (v1.2) - Homologous proteins
+
+- **New panel "Homologous Proteins"** on the dashboard: the proteins whose
+  sequence is most similar to the analysed target, with percent identity,
+  coverage, bit score and E-value. Each homolog that has activity data links
+  straight to its own analysis.
+- **Selectivity read-out** on each scaffold's "Other Targets" list: targets that
+  are sequence homologs of the analysed protein are marked with a badge and
+  sorted to the top, so a scaffold shared across a protein family (a selectivity
+  risk) is distinguishable from one shared with unrelated proteins.
+- **How the comparison is done**: every target in the local ChEMBL database was
+  aligned against every other target with a Smith-Waterman local alignment
+  (BLOSUM62, gap open 11, extend 1) - the exact alignment that BLAST
+  approximates heuristically. E-values use the standard Karlin-Altschul
+  parameters for that scoring scheme. The results are precomputed into
+  `backend/precomputed/homologs.db.gz`, so a search at runtime is a database
+  lookup: no alignment, no network call, no new runtime dependency.
+- **Adjustable cutoff, 70% by default**: a slider sets how similar a protein
+  must be to count as homologous, and the whole dashboard (panel counts, ticks
+  and the per-scaffold selectivity note) follows it. It can be switched between
+  *similarity* (identical plus conservative substitutions - the usual reading of
+  a "70% similarity" benchmark) and *identity* (identical residues only). Both
+  numbers are always shown for every hit, and hits below the cutoff are one
+  click away rather than discarded.
+
+  The slider is bounded to the range where sequence comparison can actually say
+  something, and each band is labelled:
+
+  | Basis | Range | Twilight zone | Probable homolog | Same family | Close relative |
+  |---|---|---|---|---|---|
+  | Identity | 20-95% | 20-25% | 25-40% | 40-70% | 70%+ |
+  | Similarity | 40-95% | 40-50% | 50-65% | 65-80% | 80%+ |
+
+  Below the twilight zone, similarity cannot establish homology on its own,
+  which is why the slider does not go lower.
+
+  The starting position is set server-side:
+  - `HOMOLOG_BENCHMARK` - the percentage, default `70`
+  - `HOMOLOG_BENCHMARK_BASIS` - `similarity` (default) or `identity`
+- **New endpoints**: `POST /homolog/search` and
+  `POST /homolog/scaffold-selectivity`. `POST /scaffold/cross-targets` accepts an
+  optional `query_uniprot_id` and then annotates each target with `identity`,
+  `bit_score`, `evalue` and `is_homolog`; without it the response is byte for
+  byte what it was before.
+- The analysis result gains a `homologs` block and `summary.uniprot`. Everything
+  else in the result is unchanged.
+
+### Rebuilding the homolog cache
+
+Only needed when the ChEMBL database changes. Requires network access to
+UniProt and `pip install parasail` (build time only - the app itself does not
+need it):
+
+```bash
+cd backend
+python build_homolog_cache.py database/scaffold_analyzer_chembl.db \
+    precomputed/homologs.db
+# commit the generated precomputed/homologs.db.gz
+```
+
 ## What changed (v1.1)
 
 - **Fast analysis**: a precomputed RDKit cache (`backend/precomputed/rdkit_cache.db.gz`)
