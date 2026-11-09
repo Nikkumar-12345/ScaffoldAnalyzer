@@ -32,26 +32,13 @@ RUN curl -L --fail \
 # Verify that database was downloaded
 RUN ls -lh /app/database/scaffold_analyzer_chembl.db
 
-# Unpack the precomputed RDKit cache (scaffolds, side chains and
-# descriptors for every molecule in the database). This is what makes
-# the analysis fast; without it everything is computed live (slow but
-# identical results).
-RUN python -c "import gzip, shutil; \
-src = gzip.open('/app/precomputed/rdkit_cache.db.gz', 'rb'); \
-dst = open('/app/precomputed/rdkit_cache.db', 'wb'); \
-shutil.copyfileobj(src, dst, 4 * 1024 * 1024); dst.close(); src.close()" \
-    && rm /app/precomputed/rdkit_cache.db.gz \
-    && ls -lh /app/precomputed/rdkit_cache.db
-
-# Unpack the precomputed homologous-protein cache (sequence similarity
-# between every target in the database). Without it the app runs
-# exactly as before, just without the homologous-protein panel.
-RUN python -c "import gzip, shutil; \
-src = gzip.open('/app/precomputed/homologs.db.gz', 'rb'); \
-dst = open('/app/precomputed/homologs.db', 'wb'); \
-shutil.copyfileobj(src, dst, 4 * 1024 * 1024); dst.close(); src.close()" \
-    && rm /app/precomputed/homologs.db.gz \
-    && ls -lh /app/precomputed/homologs.db
+# Unpack the precomputed caches: the RDKit scaffold cache (what makes
+# the analysis fast) and the homologous-protein cache.
+#
+# This only saves a few seconds at start-up: each service unpacks its
+# own .gz on first use if needed, so this step is deliberately not
+# allowed to fail the build.
+RUN python unpack_precomputed.py; ls -lh /app/precomputed/ || true
 
 # Render provides PORT dynamically
 CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
