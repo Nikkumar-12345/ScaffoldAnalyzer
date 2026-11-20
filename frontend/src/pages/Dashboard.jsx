@@ -5,6 +5,7 @@ import SummaryCard from "../components/SummaryCard";
 import CompositionChart from "../components/CompositionChart";
 import ScaffoldCard from "../components/ScaffoldCard";
 import HomologPanel from "../components/HomologPanel";
+import MCSPanel from "../components/MCSPanel";
 
 
 export default function Dashboard() {
@@ -225,6 +226,20 @@ export default function Dashboard() {
                 onFilterChange={handleHomologFilter}
 
             />
+
+
+            <br />
+
+
+            {/* ========================================= */}
+            {/* CHEMICAL SERIES / MCS (loaded on request) */}
+            {/* ========================================= */}
+
+            {summary.uniprot && (
+
+                <MCSPanel uniprot={summary.uniprot} />
+
+            )}
 
 
             <br />

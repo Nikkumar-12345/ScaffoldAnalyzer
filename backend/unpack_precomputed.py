@@ -22,6 +22,7 @@ BASE_DIR = Path(__file__).resolve().parent
 TARGETS = [
     "precomputed/rdkit_cache.db",
     "precomputed/homologs.db",
+    "precomputed/mcs_series.db",
 ]
 
 

@@ -11,11 +11,13 @@ from app.routes.scaffold import router as scaffold_router
 from app.routes.analyze import router as analyze_router
 from app.routes.molecule import router as molecule_router
 from app.routes.homolog import router as homolog_router
+from app.routes.mcs import router as mcs_router
 
 from app.services.database_service import DatabaseService
 from app.services.keepalive_service import start_keepalive
 from app.services.precomputed_service import PrecomputedService
 from app.services.homolog_service import HomologService
+from app.services.mcs_cache_service import MCSCacheService
 
 
 # RDKit prints thousands of harmless warnings ("bond found with stereo
@@ -30,6 +32,7 @@ def warm_up():
         DatabaseService.ensure_database_exists()
         PrecomputedService.is_available()
         HomologService.is_available()
+        MCSCacheService.is_available()
     except Exception as error:
         print(f"Warm-up warning: {error}")
 
@@ -70,6 +73,7 @@ app.include_router(analyze_router)
 app.include_router(scaffold_router)
 app.include_router(molecule_router)
 app.include_router(homolog_router)
+app.include_router(mcs_router)
 
 @app.get("/")
 def home():
