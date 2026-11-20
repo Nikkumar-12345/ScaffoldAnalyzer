@@ -4,7 +4,7 @@ import axios from "axios";
 // .env file: VITE_API_URL=http://localhost:8000) to use a local backend.
 export const API_BASE_URL =
     import.meta.env.VITE_API_URL ||
-    "https://scaffold-analyzer-backend-v11.onrender.com";
+    "https://scaffold-analyzer-backend.onrender.com";
 
 const api = axios.create({
     baseURL: API_BASE_URL,

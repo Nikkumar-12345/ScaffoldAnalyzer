@@ -17,7 +17,7 @@ jobs:
     steps:
       - name: Ping backend health endpoint
         env:
-          BACKEND_URL: ${{ vars.BACKEND_URL || 'https://scaffold-analyzer-backend-v11.onrender.com' }}
+          BACKEND_URL: ${{ vars.BACKEND_URL || 'https://scaffold-analyzer-backend.onrender.com' }}
         run: |
           curl --silent --show-error --max-time 120 --retry 2 \
             "$BACKEND_URL/health" || echo "Ping failed (backend may be redeploying)"
