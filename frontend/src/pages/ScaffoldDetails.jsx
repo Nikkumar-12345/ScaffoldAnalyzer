@@ -426,7 +426,7 @@ export default function ScaffoldDetails() {
 
             padding: 40px;
 
-            color: #1e293b;
+            color: var(--surface);
 
             background: white;
 
@@ -434,10 +434,10 @@ export default function ScaffoldDetails() {
 
         h1 {
 
-            color: #0f172a;
+            color: var(--bg);
 
             border-bottom:
-                3px solid #2563eb;
+                3px solid var(--accent);
 
             padding-bottom: 10px;
 
@@ -447,7 +447,7 @@ export default function ScaffoldDetails() {
 
             margin-top: 35px;
 
-            color: #1d4ed8;
+            color: var(--accent-strong);
 
         }
 
@@ -469,11 +469,11 @@ export default function ScaffoldDetails() {
             padding: 15px;
 
             border:
-                1px solid #cbd5e1;
+                1px solid var(--text-2);
 
             border-radius: 8px;
 
-            background: #f8fafc;
+            background: var(--text);
 
         }
 
@@ -481,7 +481,7 @@ export default function ScaffoldDetails() {
 
             font-weight: bold;
 
-            color: #475569;
+            color: var(--line-strong);
 
         }
 
@@ -492,7 +492,7 @@ export default function ScaffoldDetails() {
             padding: 20px;
 
             border:
-                1px solid #cbd5e1;
+                1px solid var(--text-2);
 
             border-radius: 10px;
 
@@ -514,7 +514,7 @@ export default function ScaffoldDetails() {
 
         th {
 
-            background: #1e293b;
+            background: var(--surface);
 
             color: white;
 
@@ -527,7 +527,7 @@ export default function ScaffoldDetails() {
         td {
 
             border:
-                1px solid #cbd5e1;
+                1px solid var(--text-2);
 
             padding: 8px;
 
@@ -537,7 +537,7 @@ export default function ScaffoldDetails() {
 
         tr:nth-child(even) {
 
-            background: #f8fafc;
+            background: var(--text);
 
         }
 
@@ -548,9 +548,9 @@ export default function ScaffoldDetails() {
             padding-top: 15px;
 
             border-top:
-                1px solid #cbd5e1;
+                1px solid var(--text-2);
 
-            color: #64748b;
+            color: var(--muted);
 
             font-size: 12px;
 
@@ -833,7 +833,7 @@ export default function ScaffoldDetails() {
 
         <div
             style={{
-                background: "#0f172a",
+                background: "var(--bg)",
                 color: "white",
                 minHeight: "100vh",
                 padding: "40px"
@@ -869,8 +869,8 @@ export default function ScaffoldDetails() {
                         cursor: "pointer",
                         fontSize: 15,
                         fontWeight: "bold",
-                        background: "#2563eb",
-                        color: "white"
+                        background: "var(--accent)",
+                        color: "var(--accent-ink)"
                     }}
                 >
                     Download Scaffold Image
@@ -909,7 +909,7 @@ export default function ScaffoldDetails() {
                         fontWeight: "bold",
                         background:
                             pairs.length === 0
-                                ? "#475569"
+                                ? "var(--line-strong)"
                                 : "#d97706",
                         color: "white",
                         opacity:
@@ -938,7 +938,7 @@ export default function ScaffoldDetails() {
 
                 <div
                     style={{
-                        background: "#1e293b",
+                        background: "var(--surface)",
                         padding: 20,
                         borderRadius: 12
                     }}
@@ -1016,7 +1016,7 @@ export default function ScaffoldDetails() {
 
             <p
                 style={{
-                    color: "#cbd5e1"
+                    color: "var(--text-2)"
                 }}
             >
                 {
@@ -1043,7 +1043,7 @@ export default function ScaffoldDetails() {
 
                 <div
                     style={{
-                        background: "#1e293b",
+                        background: "var(--surface)",
                         padding: 15,
                         borderRadius: 10
                     }}
@@ -1061,7 +1061,7 @@ export default function ScaffoldDetails() {
 
                 <div
                     style={{
-                        background: "#1e293b",
+                        background: "var(--surface)",
                         padding: 15,
                         borderRadius: 10
                     }}
@@ -1129,7 +1129,7 @@ export default function ScaffoldDetails() {
 
                     <div
                         style={{
-                            background: "#1e293b",
+                            background: "var(--surface)",
                             padding: 20,
                             borderRadius: 12
                         }}
@@ -1158,7 +1158,7 @@ export default function ScaffoldDetails() {
                             style={{
                                 width: "100%",
                                 borderCollapse: "collapse",
-                                background: "#1e293b",
+                                background: "var(--surface)",
                                 color: "white"
                             }}
                         >
@@ -1167,7 +1167,7 @@ export default function ScaffoldDetails() {
 
                                 <tr
                                     style={{
-                                        background: "#334155"
+                                        background: "var(--line-strong)"
                                     }}
                                 >
 
@@ -1226,7 +1226,7 @@ export default function ScaffoldDetails() {
                                                 style={{
 
                                                     borderBottom:
-                                                        "1px solid #475569",
+                                                        "1px solid var(--line-strong)",
 
                                                     background:
 
@@ -1246,7 +1246,7 @@ export default function ScaffoldDetails() {
 
                                                         :
 
-                                                        "#1e293b"
+                                                        "var(--surface)"
 
                                                 }}
                                             >

@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { useLocation, Navigate, useNavigate } from "react-router-dom";
+import { useLocation, Navigate, useNavigate, Link } from "react-router-dom";
 
 import SummaryCard from "../components/SummaryCard";
 import CompositionChart from "../components/CompositionChart";
@@ -7,6 +7,11 @@ import ScaffoldCard from "../components/ScaffoldCard";
 import HomologPanel from "../components/HomologPanel";
 import MCSPanel from "../components/MCSPanel";
 import StereoPanel from "../components/StereoPanel";
+import Navbar from "../components/Navbar";
+import Footer from "../components/Footer";
+
+import "../App.css";
+import "../site.css";
 
 
 export default function Dashboard() {
@@ -91,190 +96,108 @@ export default function Dashboard() {
     // DASHBOARD
     // --------------------------------------------------
 
+    const fmt = value => (
+        typeof value === "number" ? value.toLocaleString("en-US") : value
+    );
+
+    const kpis = [
+        ["Activity records", fmt(summary.activity_records), true],
+        ["Unique molecules", fmt(summary.unique_molecules), true],
+        ["Unique scaffolds", fmt(summary.unique_scaffolds), true],
+        ["Mean pIC50", summary.average_pic50, true],
+        ["Top scaffold share", summary.largest_scaffold_percentage + "%", true],
+        ["ChEMBL target", summary.chembl_target, true],
+        ["Gene", summary.gene, false],
+        ["UniProt", summary.uniprot, true]
+    ];
+
+    const shownKpis = kpis.filter(([, value]) => value !== null && value !== undefined && value !== "");
+
     return (
 
-        <div
+        <div className="site">
 
-            style={{
+            <Navbar />
 
-                padding: 40,
+            <main className="wrap">
 
-                background: "#0f172a",
+                <div className="dash-head">
 
-                color: "white",
+                    <Link to="/" className="dash-back">
+                        ← Analyze another target
+                    </Link>
 
-                minHeight: "100vh"
+                    <h1>{summary.protein}</h1>
 
-            }}
+                    <div className="dash-meta">
+                        {summary.gene && (
+                            <span>Gene <strong>{summary.gene}</strong></span>
+                        )}
+                        <span>UniProt <strong className="mono">{summary.uniprot}</strong></span>
+                        <span>ChEMBL <strong className="mono">{summary.chembl_target}</strong></span>
+                    </div>
 
-        >
+                </div>
 
-            {/* ========================================= */}
-            {/* TITLE */}
-            {/* ========================================= */}
+                <div className="kpi-grid">
 
-            <h1>
+                    {shownKpis.map(([label, value, mono]) => (
+                        <div className="kpi" key={label}>
+                            <span className="kpi-label">{label}</span>
+                            <span className={"kpi-value" + (mono ? " mono" : "")}>
+                                {value ?? "-"}
+                            </span>
+                        </div>
+                    ))}
 
-                Scaffold Analyzer
+                </div>
 
-            </h1>
+                <section className="dash-section">
 
+                    <h2>Top 10 scaffold composition</h2>
 
-            <br />
+                    <p className="dash-sub">
+                        Share of the target's molecules carried by each of
+                        the ten most populated scaffolds.
+                    </p>
 
+                    <CompositionChart data={chartData} />
 
-            {/* ========================================= */}
-            {/* SUMMARY */}
-            {/* ========================================= */}
+                </section>
 
-            <div
+                <section className="dash-section">
 
-                style={{
+                    <HomologPanel
+                        homologs={result.homologs}
+                        onFilterChange={handleHomologFilter}
+                    />
 
-                    display: "grid",
+                </section>
 
-                    gridTemplateColumns:
-                        "repeat(4, 1fr)",
+                {summary.uniprot && (
 
-                    gap: 20
+                    <>
+                        <section className="dash-section">
+                            <MCSPanel uniprot={summary.uniprot} />
+                        </section>
 
-                }}
+                        <section className="dash-section">
+                            <StereoPanel uniprot={summary.uniprot} />
+                        </section>
+                    </>
 
-            >
+                )}
 
-                <SummaryCard
-                    title="Protein"
-                    value={summary.protein}
-                />
+                <section className="dash-section">
 
-                <SummaryCard
-                    title="Gene"
-                    value={summary.gene}
-                />
+                    <h2>Top ranked scaffolds</h2>
 
-                <SummaryCard
-                    title="Target"
-                    value={summary.chembl_target}
-                />
+                    <p className="dash-sub">
+                        Open a scaffold to compare its molecules, side
+                        chains and cross-target activity.
+                    </p>
 
-                <SummaryCard
-                    title="Activity Records"
-                    value={summary.activity_records}
-                />
-
-                <SummaryCard
-                    title="Unique Molecules"
-                    value={summary.unique_molecules}
-                />
-
-                <SummaryCard
-                    title="Unique Scaffolds"
-                    value={summary.unique_scaffolds}
-                />
-
-                <SummaryCard
-                    title="Largest Scaffold %"
-                    value={
-                        summary.largest_scaffold_percentage
-                        + "%"
-                    }
-                />
-
-                <SummaryCard
-                    title="Average pIC50"
-                    value={summary.average_pic50}
-                />
-
-            </div>
-
-
-            <br />
-
-            <br />
-
-
-            {/* ========================================= */}
-            {/* COMPOSITION CHART */}
-            {/* ========================================= */}
-
-            <h2>
-
-                Top 10 Scaffold Composition
-
-            </h2>
-
-
-            <CompositionChart
-
-                data={chartData}
-
-            />
-
-
-            <br />
-
-            <br />
-
-
-            {/* ========================================= */}
-            {/* HOMOLOGOUS PROTEINS */}
-            {/* ========================================= */}
-
-            <HomologPanel
-
-                homologs={result.homologs}
-
-                onFilterChange={handleHomologFilter}
-
-            />
-
-
-            <br />
-
-
-            {/* ========================================= */}
-            {/* CHEMICAL SERIES / MCS (loaded on request) */}
-            {/* ========================================= */}
-
-            {summary.uniprot && (
-
-                <>
-                    <MCSPanel uniprot={summary.uniprot} />
-
-                    <StereoPanel uniprot={summary.uniprot} />
-                </>
-
-            )}
-
-
-            <br />
-
-
-            {/* ========================================= */}
-            {/* TOP SCAFFOLDS */}
-            {/* ========================================= */}
-
-            <h2>
-
-                Top Ranked Scaffolds
-
-            </h2>
-
-
-            <div
-
-                style={{
-
-                    display: "grid",
-
-                    gridTemplateColumns:
-                        "repeat(auto-fill,minmax(460px,1fr))",
-
-                    gap: 20
-
-                }}
-
-            >
+                    <div className="scaffold-grid">
 
                 {
 
@@ -336,7 +259,13 @@ export default function Dashboard() {
 
                 }
 
-            </div>
+                    </div>
+
+                </section>
+
+            </main>
+
+            <Footer />
 
         </div>
 

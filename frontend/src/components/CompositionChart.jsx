@@ -1,64 +1,55 @@
 import {
-
     ResponsiveContainer,
-
     BarChart,
-
     Bar,
-
     CartesianGrid,
-
     Tooltip,
-
     XAxis,
-
     YAxis
-
 } from "recharts";
 
-export default function CompositionChart({
+const AXIS = { fill: "#7c858e", fontSize: 12, fontFamily: "IBM Plex Mono, monospace" };
 
-    data
-
-}) {
+export default function CompositionChart({ data }) {
 
     return (
 
-        <div
-
-            style={{
-
-                width: "100%",
-
-                height: 420,
-
-                background: "#1e293b",
-
-                padding: 20,
-
-                borderRadius: 12
-
-            }}
-
-        >
+        <div className="chart-box">
 
             <ResponsiveContainer>
 
-                <BarChart
+                <BarChart data={data} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
 
-                    data={data}
+                    <CartesianGrid stroke="#262d35" vertical={false} />
 
-                >
+                    <XAxis
+                        dataKey="name"
+                        tick={AXIS}
+                        tickLine={false}
+                        axisLine={{ stroke: "#38414b" }}
+                    />
 
-                    <CartesianGrid strokeDasharray="3 3" />
+                    <YAxis
+                        tick={AXIS}
+                        tickLine={false}
+                        axisLine={false}
+                        unit="%"
+                    />
 
-                    <XAxis dataKey="name" />
+                    <Tooltip
+                        cursor={{ fill: "rgba(217,164,65,0.08)" }}
+                        contentStyle={{
+                            background: "#1a1f25",
+                            border: "1px solid #38414b",
+                            borderRadius: 4,
+                            color: "#e8e6e1",
+                            fontSize: 13
+                        }}
+                        labelStyle={{ color: "#b4b9bf" }}
+                        formatter={value => [`${value}%`, "Share of molecules"]}
+                    />
 
-                    <YAxis />
-
-                    <Tooltip />
-
-                    <Bar dataKey="percentage" />
+                    <Bar dataKey="percentage" fill="#d9a441" radius={[2, 2, 0, 0]} />
 
                 </BarChart>
 
@@ -67,5 +58,4 @@ export default function CompositionChart({
         </div>
 
     );
-
 }

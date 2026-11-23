@@ -8,7 +8,7 @@ export default function MoleculeCard({ molecule }) {
 
         <div
             style={{
-                background:"#1e293b",
+                background:"var(--surface)",
                 padding:20,
                 borderRadius:12,
                 color:"white"
@@ -106,7 +106,9 @@ export default function MoleculeCard({ molecule }) {
 
                                 style={{
 
-                                    background:"#2563eb",
+                                    background:"var(--accent)",
+
+                                    color:"var(--accent-ink)",
 
                                     padding:"5px 12px",
 

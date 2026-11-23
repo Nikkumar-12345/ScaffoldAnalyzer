@@ -183,7 +183,7 @@ export default function ScaffoldCard({
 
         <div
             style={{
-                background: "#1e293b",
+                background: "var(--surface)",
                 borderRadius: 12,
                 padding: 20,
                 color: "white"
@@ -573,7 +573,7 @@ export default function ScaffoldCard({
                                 }
                                 style={{
                                     background:
-                                        "#0f172a",
+                                        "var(--bg)",
                                     padding: 12,
                                     borderRadius: 8,
                                     marginBottom: 10

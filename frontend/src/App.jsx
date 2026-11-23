@@ -7,6 +7,8 @@ import {
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
 import ScaffoldDetails from "./pages/ScaffoldDetails";
+import Methods from "./pages/Methods";
+import About from "./pages/About";
 
 export default function App() {
 
@@ -29,6 +31,16 @@ export default function App() {
                 <Route
                     path="/scaffold"
                     element={<ScaffoldDetails />}
+                />
+
+                <Route
+                    path="/methods"
+                    element={<Methods />}
+                />
+
+                <Route
+                    path="/about"
+                    element={<About />}
                 />
 
             </Routes>

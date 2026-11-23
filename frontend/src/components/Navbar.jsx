@@ -1,37 +1,65 @@
-import { Link } from "react-router-dom";
+import { NavLink, Link } from "react-router-dom";
+
+const LINKS = [
+    { to: "/", label: "Analyze", end: true },
+    { to: "/methods", label: "Methods" },
+    { to: "/about", label: "About" }
+];
 
 export default function Navbar() {
+
     return (
-        <nav className="w-full bg-slate-900 border-b border-slate-700">
 
-            <div className="max-w-7xl mx-auto flex justify-between items-center px-8 py-5">
+        <header className="site-nav">
 
-                <h1 className="text-2xl font-bold text-cyan-400">
+            <div className="site-nav-inner">
+
+                <Link to="/" className="site-brand">
+                    <span className="site-brand-mark" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="22" height="22">
+                            <polygon
+                                points="12,2.5 20,7 20,17 12,21.5 4,17 4,7"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.6"
+                            />
+                            <polygon
+                                points="12,7.5 16,9.8 16,14.4 12,16.7 8,14.4 8,9.8"
+                                fill="currentColor"
+                            />
+                        </svg>
+                    </span>
                     ScaffoldAnalyzer
-                </h1>
+                </Link>
 
-                <div className="flex gap-8">
+                <nav className="site-links" aria-label="Main">
 
-                    <Link to="/" className="hover:text-cyan-400">
-                        Home
-                    </Link>
+                    {LINKS.map(link => (
+                        <NavLink
+                            key={link.to}
+                            to={link.to}
+                            end={link.end}
+                            className={({ isActive }) =>
+                                "site-link" + (isActive ? " active" : "")
+                            }
+                        >
+                            {link.label}
+                        </NavLink>
+                    ))}
 
-                    <Link to="/dashboard" className="hover:text-cyan-400">
-                        Dashboard
-                    </Link>
+                    <a
+                        className="site-link"
+                        href="https://github.com/Nikkumar-12345/ScaffoldAnalyzer"
+                        target="_blank"
+                        rel="noreferrer"
+                    >
+                        GitHub ↗
+                    </a>
 
-                    <Link to="/scaffolds" className="hover:text-cyan-400">
-                        Scaffolds
-                    </Link>
-
-                    <Link to="/about" className="hover:text-cyan-400">
-                        About
-                    </Link>
-
-                </div>
+                </nav>
 
             </div>
 
-        </nav>
+        </header>
     );
 }
