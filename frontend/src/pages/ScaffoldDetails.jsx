@@ -3,6 +3,7 @@ import { useLocation, Navigate } from "react-router-dom";
 
 import api, { getErrorMessage } from "../services/api";
 import MoleculeCard from "../components/MoleculeCard";
+import OneAtomPanel from "../components/OneAtomPanel";
 
 export default function ScaffoldDetails() {
 
@@ -17,6 +18,26 @@ export default function ScaffoldDetails() {
     const [loadedCount, setLoadedCount] = useState(0);
 
     const [loadError, setLoadError] = useState("");
+
+    // Scaffolds outside the top ten arrive without a drawing;
+    // it is fetched on demand.
+    const [fetchedSvg, setFetchedSvg] = useState(null);
+
+    useEffect(() => {
+
+        if (!scaffold || scaffold.svg) return;
+
+        let cancelled = false;
+
+        api.post("/scaffold/svg", {
+            scaffold_smiles: scaffold.scaffold_smiles
+        })
+            .then(res => { if (!cancelled) setFetchedSvg(res.data.svg); })
+            .catch(() => {});
+
+        return () => { cancelled = true; };
+
+    }, [scaffold]);
 
 
     // ==============================================
@@ -122,6 +143,8 @@ export default function ScaffoldDetails() {
     }
 
 
+    const svgMarkup = scaffold.svg || fetchedSvg;
+
     const descriptors =
         scaffold.descriptors || {};
 
@@ -149,7 +172,7 @@ export default function ScaffoldDetails() {
 
     function downloadScaffoldImage() {
 
-        if (!scaffold.svg) {
+        if (!svgMarkup) {
 
             alert("Scaffold image is not available.");
             return;
@@ -157,7 +180,7 @@ export default function ScaffoldDetails() {
         }
 
         const blob = new Blob(
-            [scaffold.svg],
+            [svgMarkup],
             {
                 type: "image/svg+xml"
             }
@@ -569,7 +592,7 @@ export default function ScaffoldDetails() {
 
     <div class="scaffold-image">
 
-        ${scaffold.svg || ""}
+        ${svgMarkup || ""}
 
     </div>
 
@@ -946,7 +969,7 @@ export default function ScaffoldDetails() {
 
                     <div
                         dangerouslySetInnerHTML={{
-                            __html: scaffold.svg
+                            __html: svgMarkup || ""
                         }}
                     />
 
@@ -1114,6 +1137,19 @@ export default function ScaffoldDetails() {
 
             </div>
 
+
+            <OneAtomPanel
+                analysis={oneAtomAnalysis}
+                pairs={pairs}
+                scaffold={scaffold}
+            />
+
+
+            <details className="oa-classic">
+
+                <summary>
+                    Classic pair table, with substituents
+                </summary>
 
             {/* ========================================= */}
             {/* PAIRS TABLE */}
@@ -1358,6 +1394,9 @@ export default function ScaffoldDetails() {
                 )
 
             }
+
+
+            </details>
 
 
             <br />

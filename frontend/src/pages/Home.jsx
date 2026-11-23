@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import api, { runAnalysis } from "../services/api";
+import { setAllScaffolds } from "../services/resultStore";
 
 import "../App.css";
 import "../site.css";
@@ -125,8 +126,14 @@ export default function Home() {
             // "all_scaffolds" is not displayed anywhere and can be
             // large; keeping it out of the browser history state avoids
             // size limits (notably in Safari).
-            // eslint-disable-next-line no-unused-vars
             const { all_scaffolds, ...dashboardResult } = result;
+
+            // Kept in memory (not in history state) for the full
+            // scaffold table on the dashboard.
+            setAllScaffolds(
+                dashboardResult.summary?.uniprot,
+                all_scaffolds
+            );
 
             navigate("/dashboard", {
                 state: {

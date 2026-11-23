@@ -7,6 +7,7 @@ import ScaffoldCard from "../components/ScaffoldCard";
 import HomologPanel from "../components/HomologPanel";
 import MCSPanel from "../components/MCSPanel";
 import StereoPanel from "../components/StereoPanel";
+import AllScaffolds from "../components/AllScaffolds";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 
@@ -260,6 +261,23 @@ export default function Dashboard() {
                 }
 
                     </div>
+
+                </section>
+
+                <section className="dash-section">
+
+                    <h2>All scaffolds</h2>
+
+                    <p className="dash-sub">
+                        Every scaffold found for this target, not only the
+                        ten ranked above.
+                    </p>
+
+                    <AllScaffolds
+                        uniprot={summary.uniprot}
+                        total={summary.unique_scaffolds}
+                        onOpen={investigate}
+                    />
 
                 </section>
 
