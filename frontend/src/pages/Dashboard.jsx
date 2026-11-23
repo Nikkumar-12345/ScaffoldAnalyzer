@@ -6,6 +6,7 @@ import CompositionChart from "../components/CompositionChart";
 import ScaffoldCard from "../components/ScaffoldCard";
 import HomologPanel from "../components/HomologPanel";
 import MCSPanel from "../components/MCSPanel";
+import StereoPanel from "../components/StereoPanel";
 
 
 export default function Dashboard() {
@@ -237,7 +238,11 @@ export default function Dashboard() {
 
             {summary.uniprot && (
 
-                <MCSPanel uniprot={summary.uniprot} />
+                <>
+                    <MCSPanel uniprot={summary.uniprot} />
+
+                    <StereoPanel uniprot={summary.uniprot} />
+                </>
 
             )}
 
