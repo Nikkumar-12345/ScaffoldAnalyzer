@@ -26,7 +26,7 @@ workflow):
 import csv
 
 from rdkit import Chem, DataStructs
-from rdkit.Chem import rdFMCS, rdFingerprintGenerator
+from rdkit.Chem import rdDepictor, rdFMCS, rdFingerprintGenerator
 from rdkit.Chem.Draw import rdMolDraw2D
 from rdkit.Chem.Scaffolds import MurckoScaffold
 
@@ -325,6 +325,75 @@ class MCSService:
         except Exception:
 
             return None
+
+    @staticmethod
+    def draw_core_from_molecules(mols, smarts, width=300, height=220):
+        """
+        Draws the common substructure as a real structure, cut out of the
+        first molecule that contains it.
+
+        Drawing the SMARTS pattern itself gives a query-style picture with
+        dotted rings and question marks. A core taken from an actual
+        member looks like what a chemist expects. Returns None when no
+        molecule matches or the cut-out cannot be drawn, so the caller can
+        fall back to draw_mcs.
+        """
+
+        pattern = Chem.MolFromSmarts(smarts)
+
+        if pattern is None:
+            return None
+
+        for mol in mols:
+
+            if mol is None:
+                continue
+
+            match = mol.GetSubstructMatch(pattern)
+
+            if not match:
+                continue
+
+            try:
+
+                keep = set(match)
+
+                editable = Chem.RWMol(mol)
+
+                for index in sorted(
+                    (a.GetIdx() for a in mol.GetAtoms()
+                     if a.GetIdx() not in keep),
+                    reverse=True
+                ):
+                    editable.RemoveAtom(index)
+
+                core = editable.GetMol()
+
+                core.UpdatePropertyCache(strict=False)
+
+                rdDepictor.Compute2DCoords(core)
+
+                drawer = rdMolDraw2D.MolDraw2DSVG(width, height)
+
+                atoms = list(range(core.GetNumAtoms()))
+
+                drawer.DrawMolecule(
+                    core,
+                    highlightAtoms=atoms,
+                    highlightAtomColors={
+                        a: (0.49, 0.23, 0.93) for a in atoms
+                    }
+                )
+
+                drawer.FinishDrawing()
+
+                return drawer.GetDrawingText()
+
+            except Exception:
+
+                continue
+
+        return None
 
     @staticmethod
     def draw_with_highlight(mol, smarts, width=300, height=220):

@@ -249,9 +249,19 @@ class MCSCacheService:
 
         if draw and data["mcs_smarts"]:
 
-            data["mcs_svg"] = MCSService.draw_mcs(data["mcs_smarts"])
-
             rep = Chem.MolFromSmiles(data["representative"]["smiles"] or "")
+
+            candidates = [rep] + [
+                Chem.MolFromSmiles(m["smiles"])
+                for m in data["molecules"][:30]
+            ]
+
+            data["mcs_svg"] = (
+                MCSService.draw_core_from_molecules(
+                    candidates, data["mcs_smarts"]
+                )
+                or MCSService.draw_mcs(data["mcs_smarts"])
+            )
 
             if rep is not None:
                 data["representative_svg"] = MCSService.draw_with_highlight(

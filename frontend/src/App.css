@@ -1460,3 +1460,9 @@
 }
 
 .mcs-error { color: #fca5a5; }
+
+
+.mcs-detail-body .homolog-table-wrap {
+    max-height: 340px;
+    overflow-y: auto;
+}
