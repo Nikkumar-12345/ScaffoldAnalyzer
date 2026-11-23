@@ -23,6 +23,7 @@ TARGETS = [
     "precomputed/rdkit_cache.db",
     "precomputed/homologs.db",
     "precomputed/mcs_series.db",
+    "precomputed/stereo.db",
 ]
 
 
